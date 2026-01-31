@@ -24,7 +24,7 @@ export const BrandMark = ({
 
   return (
     <div className={`flex items-center gap-3 ${className}`}>
-      <img src="/jim-staffing-logo.svg" alt="JIM Staffing" className={iconSize} />
+      <img src="/jim-favicon.svg" alt="JIM" className={iconSize} />
       <div className="min-w-0">
         <div
           className={`${wrapTitle ? 'whitespace-normal break-words text-center' : 'truncate'} font-extrabold leading-tight tracking-tight text-[color:var(--brand-primary)] ${titleSize}`}

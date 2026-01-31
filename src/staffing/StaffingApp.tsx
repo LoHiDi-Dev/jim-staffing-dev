@@ -119,19 +119,23 @@ export function StaffingApp() {
       <Route
         path="/clock-station"
         element={guard(
-          <>
+          <div className="flex min-h-screen flex-col bg-[#f4f6fb] overflow-x-hidden md:overflow-x-visible">
             {shell}
-            <ClockStationPage user={user!} />
-          </>,
+            <main className="flex-1">
+              <ClockStationPage user={user!} />
+            </main>
+          </div>
         )}
       />
       <Route
         path="/my-times"
         element={guard(
-          <>
+          <div className="flex min-h-screen flex-col bg-[#f4f6fb] overflow-x-hidden md:overflow-x-visible">
             {shell}
-            <MyTimesPage user={user!} />
-          </>,
+            <main className="flex-1">
+              <MyTimesPage user={user!} />
+            </main>
+          </div>
         )}
       />
 

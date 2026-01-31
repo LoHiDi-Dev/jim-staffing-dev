@@ -9,7 +9,7 @@ export function NotAuthorizedPage({ user, onLogout }: { user: ServerUser | null;
     <div className={ui.page.bg}>
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-4 flex items-center gap-3">
-          <img src="/jim-staffing-logo.svg" alt="JIM Staffing" className="h-9 w-9" />
+          <img src="/jim-favicon.svg" alt="JIM Staffing" className="h-9 w-9" />
           <div>
             <div className="text-lg font-extrabold text-[color:var(--brand-primary)]">JIM Staffing</div>
             <div className="text-sm text-slate-600">Contractor Clock In/Out</div>

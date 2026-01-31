@@ -348,7 +348,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                             maxLength={1}
                             autoComplete={idx === 0 ? 'one-time-code' : 'off'}
                             style={revealPin ? undefined : ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)}
-                            className="h-10 w-10 px-0 text-center text-lg font-semibold bg-slate-50 rounded-xl border border-slate-200"
+                            className="login-pin h-10 w-10 px-0 text-center text-lg font-semibold bg-slate-50"
                             aria-invalid={Boolean((showErr('returningPin') && returningPin.length !== 4) || fieldErrors.returningPin)}
                             value={digit}
                             onChange={(e) => {
@@ -372,6 +372,19 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                                 next[idx - 1] = ''
                                 setReturningPinDigits(next)
                               }
+                            }}
+                            onPaste={(e) => {
+                              const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 4)
+                              if (!pasted) return
+                              const next = ['', '', '', '']
+                              for (let i = 0; i < pasted.length; i += 1) next[i] = pasted[i]!
+                              setReturningPinDigits(next)
+                              setFormError('')
+                              setFieldErrors((p) => ({ ...p, returningPin: '' }))
+                              const targetIdx = Math.min(pasted.length, 3)
+                              const target = document.getElementById(`pin-${targetIdx}`) as HTMLInputElement | null
+                              target?.focus()
+                              e.preventDefault()
                             }}
                             aria-label={`PIN digit ${idx + 1}`}
                           />

@@ -81,3 +81,16 @@
   max-width: 40px !important;
   box-sizing: border-box !important;
 }
+
+/* Match JIM Web Main app shell spacing/centering */
+#root {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 24px 0;
+}
+
+@media (max-width: 960px) {
+  #root {
+    padding: 16px 16px 0;
+  }
+}

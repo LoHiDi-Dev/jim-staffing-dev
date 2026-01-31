@@ -1,12 +1,12 @@
-import { CalendarDays, Download, Loader2 } from 'lucide-react'
+import { CalendarDays, Download, Loader2, Clock, History } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type { ServerUser } from '../../api/auth'
 import { apiMyTimes, apiMyTimesExportCsv, type StaffingEventType } from '../../api/staffing'
 import { AlertBanner } from '../../components/ui/AlertBanner'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card, CardBody, CardHeader } from '../../components/ui/Card'
-import { PageHeader } from '../../components/ui/PageHeader'
 import { ui } from '../../components/ui/tokens'
 import { computeWeeklyTimes } from '../lib/time'
 
@@ -16,6 +16,8 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
   const [exporting, setExporting] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [events, setEvents] = useState<Array<{ type: StaffingEventType; timestamp: string }> | null>(null)
+  const loc = useLocation()
+  const nav = useNavigate()
 
   const firstName = useMemo(() => (user?.name ? user.name.split(' ')[0] : 'there'), [user?.name])
 
@@ -75,13 +77,49 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
   return (
     <div className={ui.page.bg}>
       <div className={ui.page.container}>
-        <div className="mb-6">
-          <PageHeader
-            align="left"
-            density="compact"
-            title="My Time Records"
-            subtitle={`Weekly summary and punch history for ${firstName}`}
-          />
+        <div className="mb-6 text-center">
+          <div className="text-3xl font-semibold tracking-tight text-[color:var(--brand-primary)] md:text-4xl">
+            <span aria-hidden="true" className="mr-2 inline-block jim-wave-once">
+              👋
+            </span>
+            Welcome back, {firstName}!
+          </div>
+          <div className="mt-2 text-xs md:text-sm leading-5 text-slate-500">
+            My Times • Review your clock activity and hours
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="mx-auto mb-6 w-full max-w-7xl" role="tablist" aria-label="My times sections">
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+              {[
+                { key: 'clock-station', label: 'Clock Station', to: '/clock-station', icon: Clock },
+                { key: 'my-times', label: 'My Times', to: '/my-times', icon: History },
+              ].map((tab) => {
+                const active = loc.pathname === tab.to
+                const Icon = tab.icon
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    aria-pressed={active}
+                    onClick={() => nav(tab.to)}
+                    className={`${ui.focusRing} cursor-pointer inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                      active
+                        ? 'bg-[color:var(--brand-primary)] text-white shadow-sm'
+                        : 'text-slate-800 hover:bg-slate-50 enabled:hover:-translate-y-[1px] enabled:hover:shadow-md active:translate-y-[1px]'
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 ${active ? 'text-white' : 'text-slate-500'}`} aria-hidden="true" />
+                    {tab.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
 
         {err ? (
