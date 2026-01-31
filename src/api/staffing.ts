@@ -1,4 +1,4 @@
-import { apiFetch } from './http'
+import { apiFetch, apiFetchBlob } from './http'
 
 export type StaffingAgency = 'PROLOGISTIX' | 'STAFF_FORCE' | 'BLUECREW'
 export type StaffingEmploymentType = 'LTC' | 'STC'
@@ -35,7 +35,18 @@ export async function apiStaffingEvent(args: {
   return await apiFetch<{ ok: boolean }>('/staffing/events', { method: 'POST', body: args })
 }
 
-export async function apiMyTimes(args: { week: 'this' | 'last' }): Promise<unknown> {
-  return await apiFetch('/staffing/my-times', { method: 'GET', headers: { 'x-week': args.week } })
+export type StaffingMyTimesResponse = {
+  range: { from: string; to: string }
+  events: Array<{ type: StaffingEventType; timestamp: string }>
+}
+
+export async function apiMyTimes(args: { week: 'this' | 'last' }): Promise<StaffingMyTimesResponse> {
+  const q = new URLSearchParams({ week: args.week })
+  return await apiFetch<StaffingMyTimesResponse>(`/staffing/my-times?${q.toString()}`)
+}
+
+export async function apiMyTimesExportCsv(args: { week: 'this' | 'last' }): Promise<Blob> {
+  const q = new URLSearchParams({ week: args.week })
+  return await apiFetchBlob(`/staffing/my-times/export.csv?${q.toString()}`, { method: 'GET' })
 }
 

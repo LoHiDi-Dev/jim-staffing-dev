@@ -1,0 +1,83 @@
+:root {
+  --brand-primary: #172a82;
+  --brand-primary-strong: #1f3aa5;
+  --brand-primary-soft: rgba(23, 42, 130, 0.12);
+}
+
+@keyframes jim-wave {
+  0% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(14deg);
+  }
+  30% {
+    transform: rotate(-8deg);
+  }
+  45% {
+    transform: rotate(12deg);
+  }
+  60% {
+    transform: rotate(-6deg);
+  }
+  75% {
+    transform: rotate(8deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.jim-wave {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: jim-wave 2.2s ease-in-out 0.4s infinite;
+}
+
+.jim-wave-once {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: jim-wave 900ms ease-in-out 120ms 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jim-wave {
+    animation: none;
+  }
+  .jim-wave-once {
+    animation: none;
+  }
+}
+
+@keyframes jim-cta-attn {
+  0% {
+    transform: translateY(4px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.jim-cta-attn {
+  animation: jim-cta-attn 480ms ease-out 1;
+}
+
+/* Hide default disclosure marker when we render our own chevron */
+.jim-summary {
+  list-style: none;
+}
+.jim-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Login PIN boxes: override global input[type=text] styles */
+.login-pin {
+  width: 40px !important;
+  height: 40px !important;
+  padding: 0 !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  box-sizing: border-box !important;
+}

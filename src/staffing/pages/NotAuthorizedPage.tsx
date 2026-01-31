@@ -1,9 +1,10 @@
 import { ShieldAlert } from 'lucide-react'
 import type { ServerUser } from '../../api/auth'
 import { AlertBanner } from '../../components/ui/AlertBanner'
+import { Button } from '../../components/ui/Button'
 import { ui } from '../../components/ui/tokens'
 
-export function NotAuthorizedPage({ user }: { user: ServerUser | null }) {
+export function NotAuthorizedPage({ user, onLogout }: { user: ServerUser | null; onLogout?: () => void }) {
   return (
     <div className={ui.page.bg}>
       <div className="mx-auto w-full max-w-3xl">
@@ -26,6 +27,14 @@ export function NotAuthorizedPage({ user }: { user: ServerUser | null }) {
             </div>
           }
         />
+
+        {onLogout ? (
+          <div className="mt-4">
+            <Button variant="outline" type="button" className="w-full justify-center sm:w-auto" onClick={onLogout}>
+              Logout
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   )

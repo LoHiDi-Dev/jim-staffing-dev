@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SiteRole {
+  ADMIN
+  MANAGER
+  OPERATOR
+  REGIONAL_MANAGER
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String   @map("password_hash")
+  defaultSiteId String?  @map("default_site_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  userSites UserSite[]
+  sessions  Session[]
+
+  staffingContractorProfile StaffingContractorProfile?
+  staffingTimeEvents        StaffingTimeEvent[]
+
+  @@index([defaultSiteId])
+  @@map("users")
+}
+
+model Site {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userSites UserSite[]
+  staffingTimeEvents StaffingTimeEvent[]
+
+  @@map("sites")
+}
+
+model UserSite {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  siteId    String   @map("site_id")
+  role      SiteRole
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, siteId])
+  @@index([siteId])
+  @@map("user_sites")
+}
+
+model Session {
+  id               String    @id @default(cuid())
+  userId           String    @map("user_id")
+  refreshTokenHash String    @map("refresh_token_hash")
+  userAgent        String?   @map("user_agent")
+  ip               String?
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+enum StaffingEmploymentType {
+  LTC
+  STC
+}
+
+enum StaffingAgency {
+  PROLOGISTIX
+  STAFF_FORCE
+  BLUECREW
+}
+
+enum StaffingEventType {
+  CLOCK_IN
+  LUNCH_START
+  LUNCH_END
+  CLOCK_OUT
+}
+
+enum StaffingEventStatus {
+  OK
+  BLOCKED
+  ADJUSTED
+}
+
+enum StaffingBlockReason {
+  OUT_OF_RANGE
+  PERMISSION_DENIED
+  LOCATION_UNAVAILABLE
+  ACCURACY_LOW
+  INVALID_STATE
+}
+
+model StaffingContractorProfile {
+  id             String                 @id @default(cuid())
+  userId         String                 @unique @map("user_id")
+  employmentType StaffingEmploymentType @map("employment_type")
+  agency         StaffingAgency
+  isActive       Boolean                @default(true) @map("is_active")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("staffing_contractor_profiles")
+}
+
+model StaffingTimeEvent {
+  id              String              @id @default(cuid())
+  userId          String              @map("user_id")
+  siteId          String?             @map("site_id")
+  agency          StaffingAgency
+  type            StaffingEventType
+  status          StaffingEventStatus @default(OK)
+  reason          StaffingBlockReason?
+  serverTimestamp DateTime            @default(now()) @map("server_timestamp")
+
+  geoLat         Float?   @map("geo_lat")
+  geoLng         Float?   @map("geo_lng")
+  accuracyMeters Float?   @map("accuracy_meters")
+  distanceMeters Float?   @map("distance_meters")
+  inRange        Boolean? @map("in_range")
+
+  userAgent String? @map("user_agent")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([userId, serverTimestamp])
+  @@index([agency, serverTimestamp])
+  @@map("staffing_time_events")
+}
+

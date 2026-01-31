@@ -13,13 +13,22 @@ import { haversineMeters, metersToMiles, STAFFING_SITE } from '../lib/geo'
 type GeoStatus =
   | { state: 'idle' }
   | { state: 'blocked'; reason: 'permission' | 'unavailable'; message: string }
-  | { state: 'ok'; lat: number; lng: number; accuracyMeters?: number; distanceMeters: number; inRange: boolean }
+  | {
+      state: 'ok'
+      lat: number
+      lng: number
+      accuracyMeters?: number
+      distanceMeters: number
+      inRange: boolean
+      accuracyOk: boolean
+    }
 
 export function ClockStationPage({ user }: { user: ServerUser }) {
   const [geo, setGeo] = useState<GeoStatus>({ state: 'idle' })
   const [busyGeo, setBusyGeo] = useState(false)
   const [clockState, setClockState] = useState<{ clockedIn: boolean; onLunch: boolean; lastActionLabel?: string; lastSyncAt?: string } | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [online, setOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true))
 
   const firstName = useMemo(() => (user?.name ? user.name.split(' ')[0] : 'there'), [user?.name])
 
@@ -48,7 +57,8 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
       const accuracyMeters = pos.coords.accuracy ?? undefined
       const distanceMeters = haversineMeters({ lat, lng }, { lat: STAFFING_SITE.lat, lng: STAFFING_SITE.lng })
       const inRange = distanceMeters <= STAFFING_SITE.radiusMeters
-      setGeo({ state: 'ok', lat, lng, accuracyMeters, distanceMeters, inRange })
+      const accuracyOk = accuracyMeters ? accuracyMeters <= 200 : true
+      setGeo({ state: 'ok', lat, lng, accuracyMeters, distanceMeters, inRange, accuracyOk })
     } catch (e) {
       const code = e && typeof e === 'object' && 'code' in e ? (e as { code?: number }).code : undefined
       if (code === 1) setGeo({ state: 'blocked', reason: 'permission', message: 'Location permission not granted.' })
@@ -63,10 +73,21 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
     void refreshLocation()
   }, [])
 
-  const verified = geo.state === 'ok' && geo.inRange
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => {
+      window.removeEventListener('online', on)
+      window.removeEventListener('offline', off)
+    }
+  }, [])
+
+  const verified = geo.state === 'ok' && geo.inRange && geo.accuracyOk
   const distanceLabel = geo.state === 'ok' ? `${metersToMiles(geo.distanceMeters).toFixed(2)} mi from site` : '—'
 
-  const canAct = geo.state === 'ok' && geo.inRange && !busyGeo
+  const canAct = geo.state === 'ok' && geo.inRange && geo.accuracyOk && !busyGeo
 
   const doEvent = async (type: 'CLOCK_IN' | 'LUNCH_START' | 'CLOCK_OUT') => {
     setErr(null)
@@ -102,8 +123,8 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
-                <div className={ui.typography.sectionTitle}>Location Verification</div>
-                <Badge tone={verified ? 'success' : 'warn'}>{verified ? 'Verified' : 'Not Verified'}</Badge>
+                <div className={ui.typography.sectionTitle}>Location Status</div>
+                <Badge tone={verified ? 'success' : 'warn'}>{verified ? 'Location verified' : 'Not verified'}</Badge>
               </div>
             </CardHeader>
             <CardBody>
@@ -118,6 +139,26 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
               {geo.state === 'blocked' ? (
                 <div className="mt-4">
                   <AlertBanner tone="warn" icon={MapPin} title={geo.message} />
+                </div>
+              ) : null}
+              {geo.state === 'ok' && !geo.inRange ? (
+                <div className="mt-4">
+                  <AlertBanner
+                    tone="warn"
+                    icon={MapPin}
+                    title={`Out of range (${metersToMiles(geo.distanceMeters).toFixed(2)} mi from site)`}
+                    description="Clock actions are available only within 1 mile of the DTX site."
+                  />
+                </div>
+              ) : null}
+              {geo.state === 'ok' && !geo.accuracyOk ? (
+                <div className="mt-4">
+                  <AlertBanner
+                    tone="warn"
+                    icon={MapPin}
+                    title="Location accuracy too low"
+                    description={`Try again outside or with a stronger GPS signal. (Accuracy: ~${Math.round(geo.accuracyMeters ?? 0)}m)`}
+                  />
                 </div>
               ) : null}
 
@@ -142,7 +183,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                 {clockState?.lastActionLabel ?? (clockState?.clockedIn ? 'Clocked in' : 'Clocked out')}
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                {clockState?.lastSyncAt ? `Last sync: ${new Date(clockState.lastSyncAt).toLocaleString()}` : 'Offline/local mode'}
+                {clockState?.lastSyncAt ? `Last sync: ${new Date(clockState.lastSyncAt).toLocaleTimeString()}` : 'Offline/local mode'}
               </div>
 
               <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -163,7 +204,8 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
               </div>
 
               <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                Connectivity: <span className="font-semibold text-slate-900">Online</span> • Last sync: <span className="font-semibold text-slate-900">{clockState?.lastSyncAt ? new Date(clockState.lastSyncAt).toLocaleTimeString() : '—'}</span>
+                Connectivity: <span className="font-semibold text-slate-900">{online ? 'Online' : 'Offline'}</span> • Last sync:{' '}
+                <span className="font-semibold text-slate-900">{clockState?.lastSyncAt ? new Date(clockState.lastSyncAt).toLocaleTimeString() : '—'}</span>
               </div>
 
               {!verified ? (

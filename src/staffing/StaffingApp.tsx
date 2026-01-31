@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { apiLogout, apiMe, apiRefresh, type ServerUser } from '../api/auth'
 import { apiStaffingMe } from '../api/staffing'
@@ -18,33 +18,48 @@ export function StaffingApp() {
   const nav = useNavigate()
   const loc = useLocation()
 
+  const handleLogout = useCallback(async () => {
+    await apiLogout()
+    setUser(null)
+    setAuthStatus('anon')
+    setEligible(null)
+    nav('/login', { replace: true })
+  }, [nav])
+
   useEffect(() => {
     let mounted = true
     const run = async () => {
       try {
-        await apiRefresh()
+        try {
+          await apiRefresh()
+        } catch {
+          // ignore refresh failure
+        }
+        const me = await apiMe()
+        if (!mounted) return
+        if (!me) {
+          setUser(null)
+          setAuthStatus('anon')
+          setEligible(null)
+          return
+        }
+        setUser(me)
+        setAuthStatus('authed')
+
+        try {
+          const staffing = await apiStaffingMe()
+          if (!mounted) return
+          setEligible(Boolean(staffing.eligible))
+        } catch {
+          if (!mounted) return
+          // Staffing portal must explicitly authorize contractors (LTC/STC).
+          setEligible(false)
+        }
       } catch {
-        // ignore
-      }
-      const me = await apiMe()
-      if (!mounted) return
-      if (!me) {
+        if (!mounted) return
         setUser(null)
         setAuthStatus('anon')
         setEligible(null)
-        return
-      }
-      setUser(me)
-      setAuthStatus('authed')
-
-      try {
-        const staffing = await apiStaffingMe()
-        if (!mounted) return
-        setEligible(Boolean(staffing.eligible))
-      } catch {
-        // Backend not wired yet → allow app to render but show a banner in pages.
-        if (!mounted) return
-        setEligible(true)
       }
     }
     void run()
@@ -52,6 +67,16 @@ export function StaffingApp() {
       mounted = false
     }
   }, [])
+
+  const shell = useMemo(
+    () => (
+      <StaffingShell
+        user={user}
+        onLogout={handleLogout}
+      />
+    ),
+    [handleLogout, user],
+  )
 
   const mustLogin = authStatus === 'anon' && loc.pathname !== '/login'
   if (mustLogin) return <Navigate to="/login" replace />
@@ -69,21 +94,6 @@ export function StaffingApp() {
     )
   }
 
-  const shell = useMemo(
-    () => (
-      <StaffingShell
-        user={user}
-        onLogout={async () => {
-          await apiLogout()
-          setUser(null)
-          setAuthStatus('anon')
-          nav('/login', { replace: true })
-        }}
-      />
-    ),
-    [nav, user],
-  )
-
   const guard = (node: React.ReactNode) => {
     if (authStatus !== 'authed') return <Navigate to="/login" replace />
     if (eligible === false) return <Navigate to="/not-authorized" replace />
@@ -92,11 +102,22 @@ export function StaffingApp() {
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage onAuthed={(u) => { setUser(u); setAuthStatus('authed'); nav('/clock', { replace: true }) }} />} />
-      <Route path="/not-authorized" element={<NotAuthorizedPage user={user} />} />
+      <Route
+        path="/login"
+        element={
+          <LoginPage
+            onAuthed={(u) => {
+              setUser(u)
+              setAuthStatus('authed')
+              nav('/clock-station', { replace: true })
+            }}
+          />
+        }
+      />
+      <Route path="/not-authorized" element={<NotAuthorizedPage user={user} onLogout={() => void handleLogout()} />} />
 
       <Route
-        path="/clock"
+        path="/clock-station"
         element={guard(
           <>
             {shell}
@@ -114,8 +135,8 @@ export function StaffingApp() {
         )}
       />
 
-      <Route path="/" element={<Navigate to="/clock" replace />} />
-      <Route path="*" element={<Navigate to="/clock" replace />} />
+      <Route path="/" element={<Navigate to="/clock-station" replace />} />
+      <Route path="*" element={<Navigate to="/clock-station" replace />} />
     </Routes>
   )
 }

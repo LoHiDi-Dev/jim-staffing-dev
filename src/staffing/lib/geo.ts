@@ -1,8 +1,19 @@
+const env = import.meta.env as {
+  VITE_STAFFING_SITE_LAT?: string
+  VITE_STAFFING_SITE_LNG?: string
+  VITE_STAFFING_RADIUS_METERS?: string
+}
+
+const toNumber = (v: string | undefined, fallback: number) => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : fallback
+}
+
 export const STAFFING_SITE = {
   address: '1130 E Kearney St, Mesquite, TX 75149',
-  lat: 32.76919206739677,
-  lng: -96.58379991502918,
-  radiusMeters: 1609.344,
+  lat: toNumber(env.VITE_STAFFING_SITE_LAT, 32.76919206739677),
+  lng: toNumber(env.VITE_STAFFING_SITE_LNG, -96.58379991502918),
+  radiusMeters: toNumber(env.VITE_STAFFING_RADIUS_METERS, 1609.344),
 } as const
 
 export function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {

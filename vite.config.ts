@@ -8,6 +8,15 @@ export default defineConfig({
     host: true,
     port: 5174,
     strictPort: true,
+    proxy: {
+      // Local dev convenience: allow VITE_API_BASE_URL=http://localhost:5174/api/v1
+      // while the Fastify API runs on :8787.
+      '/api': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 })
 

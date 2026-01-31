@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: jim
+      POSTGRES_PASSWORD: jim
+      POSTGRES_DB: jim
+    volumes:
+      - jim_staffing_pgdata:/var/lib/postgresql/data
+
+volumes:
+  jim_staffing_pgdata:
+
