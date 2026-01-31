@@ -77,6 +77,7 @@ Log in at `http://localhost:5174/login` with:
 | `VITE_STAFFING_SITE_LAT` | Yes | Geo-fence center latitude. |
 | `VITE_STAFFING_SITE_LNG` | Yes | Geo-fence center longitude. |
 | `VITE_STAFFING_RADIUS_METERS` | Yes | Geo-fence radius in meters (1 mile = 1609.344). |
+| `VITE_STAFFING_IDLE_MINUTES` | No | Idle timeout minutes before session locks (default: 12). |
 
 ## API server deploy
 
@@ -96,7 +97,11 @@ Staffing agency API keys (MVP env-based):
 
 - `STAFFING_API_KEY_PROLOGISTIX`
 - `STAFFING_API_KEY_STAFF_FORCE`
-- `STAFFING_API_KEY_BLUECREW`
+
+Staffing punch security (warehouse Wi‑Fi allowlist):
+
+- `STAFFING_ALLOWED_EGRESS_IPS=12.34.56.78,98.76.54.32`
+- `STAFFING_WIFI_ALLOWLIST_DISABLED=true` (local dev only)
 
 ## Weekly report cron (Friday 5:00 PM CT)
 

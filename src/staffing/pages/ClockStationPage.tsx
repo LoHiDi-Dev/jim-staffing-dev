@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MapPin, RefreshCw, Timer, Clock, History } from 'lucide-react'
+import { MapPin, RefreshCw, Timer, Clock, FileText } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ServerUser } from '../../api/auth'
 import { AlertBanner } from '../../components/ui/AlertBanner'
 import { Badge } from '../../components/ui/Badge'
-import { Button, DangerButton, PrimaryButton, SecondaryButton } from '../../components/ui/Button'
+import { DangerButton, SecondaryButton, SuccessButton } from '../../components/ui/Button'
 import { Card, CardBody, CardHeader } from '../../components/ui/Card'
 import { ui } from '../../components/ui/tokens'
 import { apiStaffingEvent, apiStaffingState } from '../../api/staffing'
 import { haversineMeters, metersToMiles, STAFFING_SITE } from '../lib/geo'
+import { STAFFING_COPY } from '../copy'
 
 type GeoStatus =
   | { state: 'idle' }
@@ -87,9 +88,9 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
   }, [])
 
   const verified = geo.state === 'ok' && geo.inRange && geo.accuracyOk
-  const distanceLabel = geo.state === 'ok' ? `${metersToMiles(geo.distanceMeters).toFixed(2)} mi from site` : '—'
 
-  const canAct = geo.state === 'ok' && geo.inRange && geo.accuracyOk && !busyGeo
+  // Geofence is a secondary check (for visibility + auditing). Primary enforcement is server-side warehouse Wi‑Fi allowlist.
+  const canAct = online && !busyGeo
 
   const doEvent = async (type: 'CLOCK_IN' | 'LUNCH_START' | 'CLOCK_OUT') => {
     setErr(null)
@@ -114,7 +115,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
             Welcome back, {firstName}!
           </div>
           <div className="mt-2 text-xs md:text-sm leading-5 text-slate-500">
-            Clock Station • Ready to clock in at JIM DTX Warehouse
+            {STAFFING_COPY.headerSubtitle}
           </div>
         </div>
 
@@ -124,7 +125,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
             <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
               {[
                 { key: 'clock-station', label: 'Clock Station', to: '/clock-station', icon: Clock },
-                { key: 'my-times', label: 'My Times', to: '/my-times', icon: History },
+                { key: 'my-times', label: 'My Timecard', to: '/my-times', icon: FileText },
               ].map((tab) => {
                 const active = loc.pathname === tab.to
                 const Icon = tab.icon
@@ -158,12 +159,12 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
         ) : null}
 
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
-          {/* Left Column - Location Status */}
+          {/* Left Column - Location Check */}
           <section className="space-y-4">
             <Card>
               <CardHeader className="px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-base font-extrabold text-[color:var(--brand-primary)]">Location Status</div>
+                  <div className="text-base font-extrabold text-[color:var(--brand-primary)]">Location Check</div>
                   <Badge tone={verified ? 'success' : 'warn'}>{verified ? 'Verified' : 'Not verified'}</Badge>
                 </div>
               </CardHeader>
@@ -172,7 +173,6 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                   <MapPin className="h-4 w-4 text-slate-400" aria-hidden="true" />
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-slate-900">{STAFFING_SITE.address}</div>
-                    <div className="mt-0.5 text-xs text-slate-500">{distanceLabel}</div>
                   </div>
                 </div>
 
@@ -182,9 +182,12 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                 {geo.state === 'ok' && !geo.inRange ? (
                   <AlertBanner
                     tone="warn"
-                    icon={MapPin}
-                    title={`Out of range (${metersToMiles(geo.distanceMeters).toFixed(2)} mi from site)`}
-                    description="Clock actions are available only within 1 mile of the DTX site."
+                    title={
+                      <>
+                        <span className="font-semibold">{`Out of range (${metersToMiles(geo.distanceMeters).toFixed(2)} mi from DTX Warehouse). `}</span>
+                        Clock in/out requires DTX Warehouse Wi-Fi and a location check.
+                      </>
+                    }
                   />
                 ) : null}
                 {geo.state === 'ok' && !geo.accuracyOk ? (
@@ -197,62 +200,53 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                 ) : null}
 
                 <div>
-                  <PrimaryButton type="button" className="h-9 w-full justify-center text-sm" onClick={refreshLocation} disabled={busyGeo}>
+                  <SecondaryButton type="button" className="h-9 w-full justify-center text-sm" onClick={refreshLocation} disabled={busyGeo}>
                     <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-                    {busyGeo ? 'Refreshing…' : 'Refresh Location'}
-                  </PrimaryButton>
+                    {busyGeo ? 'Rechecking…' : 'Recheck Location'}
+                  </SecondaryButton>
                 </div>
               </CardBody>
             </Card>
           </section>
 
-          {/* Right Column - Clock Status */}
+          {/* Right Column - Shift Status */}
           <section>
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between gap-3">
-                  <div className={ui.typography.sectionTitle}>Status</div>
-                  <Badge tone={clockState?.clockedIn ? 'info' : 'neutral'}>{clockState?.clockedIn ? 'Clocked In' : 'Clocked Out'}</Badge>
+                  <div className={ui.typography.sectionTitle}>Shift Status</div>
+                  <Badge tone={clockState?.clockedIn ? 'info' : 'neutral'}>{clockState?.clockedIn ? "You're clocked in" : "You're clocked out"}</Badge>
                 </div>
               </CardHeader>
               <CardBody>
                 <div className="text-sm font-semibold text-slate-900">
-                  {clockState?.lastActionLabel ?? (clockState?.clockedIn ? 'Clocked in' : 'Clocked out')}
+                  {clockState?.lastActionLabel ?? (clockState?.clockedIn ? "You're clocked in" : "You're clocked out")}
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
-                  {clockState?.lastSyncAt ? `Last sync: ${new Date(clockState.lastSyncAt).toLocaleTimeString()}` : 'Offline/local mode'}
+                  {clockState?.lastSyncAt ? `Last update: ${new Date(clockState.lastSyncAt).toLocaleTimeString()}` : 'Offline/local mode'}
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {!clockState?.clockedIn ? (
-                    <PrimaryButton type="button" className="w-full justify-center sm:col-span-2" disabled={!canAct} onClick={() => doEvent('CLOCK_IN')}>
-                      Clock In
-                    </PrimaryButton>
+                    <SuccessButton type="button" className="w-auto min-w-[200px] justify-center justify-self-center sm:col-span-2" disabled={!canAct} onClick={() => doEvent('CLOCK_IN')}>
+                      Clock in
+                    </SuccessButton>
                   ) : (
                     <>
                       <SecondaryButton type="button" className="w-full justify-center" disabled={!canAct || clockState.onLunch} onClick={() => doEvent('LUNCH_START')}>
                         Start Lunch (30 min)
                       </SecondaryButton>
                       <DangerButton type="button" className="w-full justify-center" disabled={!canAct} onClick={() => doEvent('CLOCK_OUT')}>
-                        Clock Out
+                        Clock out
                       </DangerButton>
                     </>
                   )}
                 </div>
 
                 <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                  Connectivity: <span className="font-semibold text-slate-900">{online ? 'Online' : 'Offline'}</span> • Last sync:{' '}
+                  Connection: <span className="font-semibold text-slate-900">{online ? 'Online' : 'Offline'}</span> • Updated{' '}
                   <span className="font-semibold text-slate-900">{clockState?.lastSyncAt ? new Date(clockState.lastSyncAt).toLocaleTimeString() : '—'}</span>
                 </div>
-
-                {!verified ? (
-                  <div className="mt-4">
-                    <Button variant="outline" type="button" className="w-full justify-center" onClick={refreshLocation}>
-                      Refresh Location
-                      <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                  </div>
-                ) : null}
               </CardBody>
             </Card>
           </section>

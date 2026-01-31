@@ -1,4 +1,4 @@
-import { CalendarDays, Download, Loader2, Clock, History } from 'lucide-react'
+import { CalendarDays, Download, Loader2, Clock, FileText } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ServerUser } from '../../api/auth'
@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button'
 import { Card, CardBody, CardHeader } from '../../components/ui/Card'
 import { ui } from '../../components/ui/tokens'
 import { computeWeeklyTimes } from '../lib/time'
+import { STAFFING_COPY } from '../copy'
 
 export function MyTimesPage({ user }: { user: ServerUser }) {
   const [tab, setTab] = useState<'this' | 'last'>('this')
@@ -85,7 +86,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
             Welcome back, {firstName}!
           </div>
           <div className="mt-2 text-xs md:text-sm leading-5 text-slate-500">
-            My Times • Review your clock activity and hours
+            {STAFFING_COPY.headerSubtitle}
           </div>
         </div>
 
@@ -95,7 +96,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
             <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
               {[
                 { key: 'clock-station', label: 'Clock Station', to: '/clock-station', icon: Clock },
-                { key: 'my-times', label: 'My Times', to: '/my-times', icon: History },
+                { key: 'my-times', label: 'My Timecard', to: '/my-times', icon: FileText },
               ].map((tab) => {
                 const active = loc.pathname === tab.to
                 const Icon = tab.icon

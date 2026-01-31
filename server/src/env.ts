@@ -11,7 +11,14 @@ const EnvSchema = z.object({
   // Staffing agency API keys (env-based MVP)
   STAFFING_API_KEY_PROLOGISTIX: z.string().optional(),
   STAFFING_API_KEY_STAFF_FORCE: z.string().optional(),
-  STAFFING_API_KEY_BLUECREW: z.string().optional(),
+
+  // Staffing punch security (warehouse Wi‑Fi allowlist)
+  // Comma-separated list of warehouse public egress IPs (e.g. 12.34.56.78,98.76.54.32)
+  STAFFING_ALLOWED_EGRESS_IPS: z.string().optional(),
+  // Local dev bypass flag; if true, allow punches even when IP not allowlisted (still logged as DEV_BYPASS)
+  STAFFING_WIFI_ALLOWLIST_DISABLED: z.string().optional(),
+  // Optional dev-only bypass for specific userIds (comma-separated). Allows punching even when not on warehouse Wi‑Fi.
+  STAFFING_WIFI_ALLOWLIST_BYPASS_USER_IDS: z.string().optional(),
 
   // Staffing weekly report (optional)
   STAFFING_REPORT_RECIPIENTS: z.string().optional(),

@@ -28,6 +28,7 @@ model User {
 
   staffingContractorProfile StaffingContractorProfile?
   staffingTimeEvents        StaffingTimeEvent[]
+  staffingPunchTokens       StaffingPunchToken[]
 
   @@index([defaultSiteId])
   @@map("users")
@@ -86,7 +87,6 @@ enum StaffingEmploymentType {
 enum StaffingAgency {
   PROLOGISTIX
   STAFF_FORCE
-  BLUECREW
 }
 
 enum StaffingEventType {
@@ -103,11 +103,40 @@ enum StaffingEventStatus {
 }
 
 enum StaffingBlockReason {
+  NOT_ON_WAREHOUSE_WIFI
   OUT_OF_RANGE
   PERMISSION_DENIED
   LOCATION_UNAVAILABLE
   ACCURACY_LOW
   INVALID_STATE
+  INVALID_PUNCH_TOKEN
+  MISSING_IDEMPOTENCY_KEY
+  REUSED_IDEMPOTENCY_KEY
+  RATE_LIMITED
+}
+
+enum StaffingWifiAllowlistStatus {
+  PASS
+  FAIL
+  DEV_BYPASS
+}
+
+model StaffingPunchToken {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  deviceId      String   @map("device_id")
+  userAgentHash String?  @map("user_agent_hash")
+  tokenHash     String   @map("token_hash")
+  issuedAt      DateTime @default(now()) @map("issued_at")
+  expiresAt     DateTime @map("expires_at")
+  revokedAt     DateTime? @map("revoked_at")
+  lastSeenAt    DateTime? @map("last_seen_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deviceId])
+  @@index([expiresAt])
+  @@map("staffing_punch_tokens")
 }
 
 model StaffingContractorProfile {
@@ -133,12 +162,21 @@ model StaffingTimeEvent {
   status          StaffingEventStatus @default(OK)
   reason          StaffingBlockReason?
   serverTimestamp DateTime            @default(now()) @map("server_timestamp")
+  clientReportedTimestamp DateTime?   @map("client_reported_timestamp")
+  clientTimeDriftMs       Int?        @map("client_time_drift_ms")
+  clientTimeDriftFlag     Boolean?    @map("client_time_drift_flag")
 
   geoLat         Float?   @map("geo_lat")
   geoLng         Float?   @map("geo_lng")
   accuracyMeters Float?   @map("accuracy_meters")
   distanceMeters Float?   @map("distance_meters")
   inRange        Boolean? @map("in_range")
+
+  ipAddress           String?                  @map("ip_address")
+  wifiAllowlistStatus StaffingWifiAllowlistStatus? @map("wifi_allowlist_status")
+  deviceId            String?                  @map("device_id")
+  punchTokenId        String?                  @map("punch_token_id")
+  idempotencyKey      String?                  @map("idempotency_key")
 
   userAgent String? @map("user_agent")
   notes     String?
@@ -149,6 +187,6 @@ model StaffingTimeEvent {
 
   @@index([userId, serverTimestamp])
   @@index([agency, serverTimestamp])
+  @@index([idempotencyKey])
   @@map("staffing_time_events")
 }
-

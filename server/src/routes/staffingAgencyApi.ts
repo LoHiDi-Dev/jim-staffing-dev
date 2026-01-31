@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../prisma'
 import { loadEnv } from '../env'
 
-type StaffingAgency = 'PROLOGISTIX' | 'STAFF_FORCE' | 'BLUECREW'
+type StaffingAgency = 'PROLOGISTIX' | 'STAFF_FORCE'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -20,7 +20,6 @@ async function requireAgencyApiKey(req: FastifyRequest, app: Parameters<FastifyP
   const keys: Array<[StaffingAgency, string | undefined]> = [
     ['PROLOGISTIX', env.STAFFING_API_KEY_PROLOGISTIX],
     ['STAFF_FORCE', env.STAFFING_API_KEY_STAFF_FORCE],
-    ['BLUECREW', env.STAFFING_API_KEY_BLUECREW],
   ]
 
   const match = keys.find(([, k]) => Boolean(k && k.trim() && token === k.trim()))

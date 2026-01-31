@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { apiLogout, apiMe, apiRefresh, type ServerUser } from '../api/auth'
 import { apiStaffingMe } from '../api/staffing'
+import { setAccessToken } from '../api/token'
+import { Footer } from '../components/Footer'
 import { StaffingShell } from './components/StaffingShell'
 import { ClockStationPage } from './pages/ClockStationPage'
 import { LoginPage } from './pages/LoginPage'
@@ -24,6 +26,20 @@ export function StaffingApp() {
     setAuthStatus('anon')
     setEligible(null)
     nav('/login', { replace: true })
+  }, [nav])
+
+  const handleLock = useCallback(() => {
+    // Soft-lock: clear access token + punch token cache, but do not revoke refresh cookie.
+    setAccessToken(null)
+    try {
+      sessionStorage.removeItem('jim.staffing.punchToken')
+    } catch {
+      // ignore
+    }
+    setUser(null)
+    setEligible(null)
+    setAuthStatus('anon')
+    nav('/login?locked=1', { replace: true })
   }, [nav])
 
   useEffect(() => {
@@ -67,6 +83,34 @@ export function StaffingApp() {
       mounted = false
     }
   }, [])
+
+  // MUST #3 — Idle timeout + auto-lock on background (low friction: re-login only after idle/background).
+  useEffect(() => {
+    if (authStatus !== 'authed') return
+    const idleMinutesRaw = String((import.meta as unknown as { env?: Record<string, unknown> }).env?.VITE_STAFFING_IDLE_MINUTES ?? '12')
+    const idleMinutes = Number(idleMinutesRaw)
+    const idleMs = Number.isFinite(idleMinutes) && idleMinutes > 0 ? idleMinutes * 60_000 : 12 * 60_000
+
+    let timer: number | null = null
+    const bump = () => {
+      if (timer) window.clearTimeout(timer)
+      timer = window.setTimeout(() => handleLock(), idleMs)
+    }
+    const onVis = () => {
+      if (document.hidden) handleLock()
+    }
+
+    const events: Array<keyof WindowEventMap> = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll']
+    for (const e of events) window.addEventListener(e, bump, { passive: true })
+    document.addEventListener('visibilitychange', onVis)
+    bump()
+
+    return () => {
+      if (timer) window.clearTimeout(timer)
+      for (const e of events) window.removeEventListener(e, bump as EventListener)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [authStatus, handleLock])
 
   const shell = useMemo(
     () => (
@@ -124,6 +168,7 @@ export function StaffingApp() {
             <main className="flex-1">
               <ClockStationPage user={user!} />
             </main>
+            <Footer />
           </div>
         )}
       />
@@ -135,6 +180,7 @@ export function StaffingApp() {
             <main className="flex-1">
               <MyTimesPage user={user!} />
             </main>
+            <Footer />
           </div>
         )}
       />

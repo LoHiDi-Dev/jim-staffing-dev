@@ -42,6 +42,7 @@ export const ui = {
     },
     primary: 'bg-[color:var(--brand-primary)] text-white hover:bg-[color:var(--brand-primary-strong)]',
     secondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+    success: 'bg-emerald-600 text-white hover:bg-emerald-700',
     outline: 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50',
     danger: 'border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100',
     ghost: 'bg-transparent text-slate-700 hover:bg-slate-100',

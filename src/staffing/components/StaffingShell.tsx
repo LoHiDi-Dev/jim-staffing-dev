@@ -1,24 +1,15 @@
-import { Menu, LogOut, X } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import type { ServerUser } from '../../api/auth'
 import { apiStaffingMe, type StaffingEmploymentType } from '../../api/staffing'
+import { BrandMark } from '../../components/BrandMark'
 import { Button } from '../../components/ui/Button'
 import { ui } from '../../components/ui/tokens'
 import { STAFFING_SITES } from '../sites'
 
 export function StaffingShell({ user, onLogout }: { user: ServerUser | null; onLogout: () => void }) {
-  const [open, setOpen] = useState(false)
   const [employmentType, setEmploymentType] = useState<StaffingEmploymentType | null>(null)
-  const loc = useLocation()
-
-  const links = useMemo(
-    () => [
-      { label: 'Clock Station', to: '/clock-station' },
-      { label: 'My Times', to: '/my-times' },
-    ],
-    [],
-  )
 
   useEffect(() => {
     let mounted = true
@@ -79,14 +70,19 @@ export function StaffingShell({ user, onLogout }: { user: ServerUser | null; onL
             aria-label="Go home"
             title="Home"
           >
-            <img src="/jim-favicon.svg" alt="JIM Staffing" className="h-12 w-12 shrink-0" />
-            <div className="min-w-0">
-              <div className="truncate font-extrabold leading-tight tracking-tight text-[color:var(--brand-primary)] text-base">
-                JIM Staffing<sup className="text-xs">®</sup>
-              </div>
-              <div className="truncate leading-tight text-slate-500 text-sm">
-                Contractor Clock In/Out
-              </div>
+            <div className="md:hidden">
+              <BrandMark size="sm" title={<span className="text-[16px]">JIM</span>} subtitle={null} />
+            </div>
+            <div className="hidden md:block">
+              <BrandMark
+                size="md"
+                title={
+                  <>
+                    JIM Staffing<sup className="text-xs">®</sup>
+                  </>
+                }
+                subtitle="Workforce Attendance"
+              />
             </div>
           </Link>
         </div>
@@ -96,8 +92,8 @@ export function StaffingShell({ user, onLogout }: { user: ServerUser | null; onL
             {/* Mobile: compact logout only */}
             <div className="md:hidden">
               <Button variant="outline" type="button" className="shrink-0 h-9 px-2.5 text-[13px] gap-1.5" onClick={onLogout}>
-                Log Out
                 <LogOut className="h-4 w-4" aria-hidden="true" />
+                Logout
               </Button>
             </div>
 
@@ -112,62 +108,13 @@ export function StaffingShell({ user, onLogout }: { user: ServerUser | null; onL
                 <div className="h-9 w-px bg-slate-200" aria-hidden="true" />
 
                 <Button variant="outline" type="button" className="shrink-0" onClick={onLogout}>
-                  Log Out
                   <LogOut className="h-4 w-4" aria-hidden="true" />
+                  Logout
                 </Button>
               </div>
             </div>
           </div>
-
-          <Button
-            variant="ghost"
-            type="button"
-            className="px-3 md:hidden"
-            aria-label={open ? 'Close menu' : 'Open menu'}
-            aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
-          </Button>
         </div>
-
-        {open ? (
-          <div className="absolute left-0 right-0 top-full z-50 mt-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
-              <div className="border-b border-slate-200 pb-3">
-                <nav className="flex flex-col" aria-label="Mobile">
-                  {links.map((l) => {
-                    const active = loc.pathname === l.to
-                    return (
-                      <Link
-                        key={l.to}
-                        to={l.to}
-                        className={`rounded-xl px-3 py-3 text-sm font-semibold transition hover:bg-slate-50 hover:text-slate-900 ${ui.focusRing} ${
-                          active ? 'text-slate-900' : 'text-slate-700'
-                        }`}
-                        onClick={() => setOpen(false)}
-                      >
-                        {l.label}
-                      </Link>
-                    )
-                  })}
-                </nav>
-              </div>
-              <div className="pt-3">
-                <button
-                  type="button"
-                  className={`w-full rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 ${ui.focusRing}`}
-                  onClick={() => {
-                    setOpen(false)
-                    onLogout()
-                  }}
-                >
-                  Log Out
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
       </div>
     </header>
   )

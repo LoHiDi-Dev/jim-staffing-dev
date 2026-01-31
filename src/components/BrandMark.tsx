@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 export const BrandMark = ({
   size = 'md',
   title,
-  subtitle = 'Contractor Clock In/Out',
+  subtitle = 'Workforce Attendance',
   wrapTitle = false,
   wrapSubtitle = false,
   rightSlot,

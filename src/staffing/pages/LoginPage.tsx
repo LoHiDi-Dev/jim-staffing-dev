@@ -1,5 +1,6 @@
 import { AlertCircle, Eye, EyeOff, X } from 'lucide-react'
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { API_BASE_URL } from '../../api/config'
 import { apiLogin, apiLoginByName, type ServerUser } from '../../api/auth'
 import { AlertBanner } from '../../components/ui/AlertBanner'
@@ -22,6 +23,7 @@ function userIdToEmail(userId: string): string {
 }
 
 export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
+  const loc = useLocation()
   const [loginUserType, setLoginUserType] = useState<'returning' | 'firstTime' | null>(null)
   const [loginLocation, setLoginLocation] = useState<WarehouseCode | null>(null)
   const [returningLoginMethod, setReturningLoginMethod] = useState<'fullName' | 'userId' | null>(null)
@@ -38,6 +40,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
   const [busy, setBusy] = useState(false)
 
   const apiNotConfigured = !API_BASE_URL
+  const wasLocked = new URLSearchParams(loc.search).get('locked') === '1'
   const selectedWarehouse = loginLocation ? WAREHOUSES.find((w) => w.code === loginLocation) ?? null : null
 
   const returningPin = returningPinDigits.join('')
@@ -149,10 +152,18 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
 
           {/* Header */}
           <div className="flex w-full flex-col items-center text-center">
-            <BrandMark size="lg" subtitle="Contractor Clock In/Out" wrapTitle wrapSubtitle className="w-full flex-col" />
+            <BrandMark size="lg" subtitle="Workforce Attendance" wrapTitle wrapSubtitle className="w-full flex-col" />
           </div>
 
           <div className="mt-7 space-y-5">
+            {wasLocked ? (
+              <AlertBanner
+                tone="warn"
+                icon={AlertCircle}
+                title="Session Locked"
+                description="For security, your session was locked due to inactivity or the app going to the background. Please log in again to continue."
+              />
+            ) : null}
             {apiNotConfigured ? (
               <AlertBanner
                 tone="warn"

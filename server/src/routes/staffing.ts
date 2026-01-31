@@ -2,6 +2,8 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../prisma'
 import type { StaffingAgency, StaffingBlockReason, StaffingEventStatus, StaffingEventType } from '@prisma/client'
+import { evalWifiAllowlist, newPunchTokenSecret, sha256Hex, shouldBypassWifiAllowlistForUser, userAgentHash } from '../lib/staffingPunchSecurity'
+import { InMemoryRateLimiter } from '../lib/staffingRateLimit'
 
 const STAFFING_SITE = {
   address: '1130 E Kearney St, Mesquite, TX 75149',
@@ -9,6 +11,13 @@ const STAFFING_SITE = {
   lng: -96.58379991502918,
   radiusMeters: 1609.344,
 } as const
+
+const DEVICE_ID_HEADER = 'x-staffing-device-id'
+const PUNCH_TOKEN_HEADER = 'x-staffing-punch-token'
+const IDEMPOTENCY_HEADER = 'x-idempotency-key'
+
+const USER_PUNCH_LIMITER = new InMemoryRateLimiter(60_000, 10)
+const IP_PUNCH_LIMITER = new InMemoryRateLimiter(60_000, 30)
 
 function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 6371000
@@ -25,6 +34,7 @@ function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng:
 
 const EventBody = z.object({
   type: z.enum(['CLOCK_IN', 'LUNCH_START', 'LUNCH_END', 'CLOCK_OUT']),
+  clientReportedTimestamp: z.string().datetime().optional(),
   geo: z
     .object({
       lat: z.number(),
@@ -127,6 +137,63 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
     return deriveState(events)
   })
 
+  /**
+   * Issues a short-lived punch token that must be provided to all punch endpoints.
+   * Requires:
+   * - contractor eligibility (LTC/STC)
+   * - request originates from warehouse Wi‑Fi allowlist (or DEV_BYPASS in local dev)
+   * - deviceId header present
+   */
+  app.post('/staffing/punch-token', async (req) => {
+    const ctx = await app.requireSiteRole(req)
+
+    const profile = await prisma.staffingContractorProfile.findUnique({ where: { userId: ctx.userId } })
+    if (!profile) throw app.httpErrors.forbidden('Not authorized for JIM Staffing.')
+    if (!(profile.isActive && (profile.employmentType === 'LTC' || profile.employmentType === 'STC'))) {
+      throw app.httpErrors.forbidden('Not authorized for JIM Staffing.')
+    }
+
+    const deviceId = String(req.headers[DEVICE_ID_HEADER] ?? '').trim()
+    if (!deviceId) throw app.httpErrors.badRequest('Missing device id.')
+
+    const wifiRaw = evalWifiAllowlist(req)
+    const wifi =
+      wifiRaw.status === 'FAIL' && shouldBypassWifiAllowlistForUser(ctx.userId) ? { ...wifiRaw, status: 'DEV_BYPASS' as const } : wifiRaw
+    if (wifi.status === 'FAIL') {
+      throw app.httpErrors.forbidden('Clocking is only available on warehouse Wi-Fi.')
+    }
+
+    // Revoke any active tokens for this user+device (best-effort).
+    await prisma.staffingPunchToken.updateMany({
+      where: { userId: ctx.userId, deviceId, revokedAt: null, expiresAt: { gt: new Date() } },
+      data: { revokedAt: new Date() },
+    })
+
+    const { token, tokenHash } = newPunchTokenSecret()
+    const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000)
+    const uaHash = userAgentHash(req)
+
+    const created = await prisma.staffingPunchToken.create({
+      data: {
+        userId: ctx.userId,
+        deviceId,
+        userAgentHash: uaHash,
+        tokenHash,
+        issuedAt: new Date(),
+        expiresAt,
+        revokedAt: null,
+        lastSeenAt: null,
+      },
+      select: { id: true, expiresAt: true },
+    })
+
+    return {
+      token,
+      expiresAt: created.expiresAt.toISOString(),
+      wifiAllowlistStatus: wifi.status,
+    }
+  })
+
   app.post('/staffing/events', async (req) => {
     const ctx = await app.requireSiteRole(req)
     const body = EventBody.parse(req.body)
@@ -138,6 +205,16 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const agency: StaffingAgency = profile.agency
+    const userAgent = String(req.headers['user-agent'] ?? '')
+
+    const wifiRaw = evalWifiAllowlist(req)
+    const wifi =
+      wifiRaw.status === 'FAIL' && shouldBypassWifiAllowlistForUser(ctx.userId) ? { ...wifiRaw, status: 'DEV_BYPASS' as const } : wifiRaw
+    const ipAddress = wifi.ipAddress
+
+    const deviceId = String(req.headers[DEVICE_ID_HEADER] ?? '').trim()
+    const punchToken = String(req.headers[PUNCH_TOKEN_HEADER] ?? '').trim()
+    const idempotencyKey = String(req.headers[IDEMPOTENCY_HEADER] ?? req.headers['x-idempotency-key'] ?? '').trim()
 
     // Load last OK events to validate state transitions.
     const events = await prisma.staffingTimeEvent.findMany({
@@ -155,68 +232,122 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
     if (requested === 'LUNCH_START' && (!state.clockedIn || state.onLunch)) invalidState = true
     if (requested === 'LUNCH_END' && (!state.clockedIn || !state.onLunch)) invalidState = true
 
-    const userAgent = String(req.headers['user-agent'] ?? '')
-
     const geo = body.geo
     const distanceMeters =
       geo ? haversineMeters({ lat: geo.lat, lng: geo.lng }, { lat: STAFFING_SITE.lat, lng: STAFFING_SITE.lng }) : null
     const inRange = distanceMeters != null ? distanceMeters <= STAFFING_SITE.radiusMeters : false
 
-    const reason: StaffingBlockReason | null =
-      invalidState
-        ? 'INVALID_STATE'
-        : !geo
-          ? 'LOCATION_UNAVAILABLE'
-          : !inRange
-            ? 'OUT_OF_RANGE'
-            : null
+    const serverNow = new Date()
+    const clientReported = body.clientReportedTimestamp ? new Date(body.clientReportedTimestamp) : null
+    const driftMs = clientReported ? serverNow.getTime() - clientReported.getTime() : null
+    const driftFlag = driftMs != null ? Math.abs(driftMs) >= 5 * 60 * 1000 : null
 
+    const baseEvent = {
+      userId: ctx.userId,
+      siteId: ctx.siteId,
+      agency,
+      type: requested,
+      serverTimestamp: serverNow,
+      clientReportedTimestamp: clientReported,
+      clientTimeDriftMs: driftMs != null ? Math.trunc(driftMs) : null,
+      clientTimeDriftFlag: driftFlag,
+      geoLat: geo?.lat ?? null,
+      geoLng: geo?.lng ?? null,
+      accuracyMeters: geo?.accuracyMeters ?? null,
+      distanceMeters: distanceMeters ?? null,
+      inRange,
+      userAgent,
+      notes: body.notes ?? null,
+      ipAddress: ipAddress,
+      wifiAllowlistStatus: wifi.status,
+      deviceId: deviceId || null,
+      idempotencyKey: idempotencyKey || null,
+    } as const
+
+    // MUST #1 — Warehouse Wi‑Fi allowlist
+    if (wifi.status === 'FAIL') {
+      await prisma.staffingTimeEvent.create({
+        data: { ...baseEvent, status: 'BLOCKED', reason: 'NOT_ON_WAREHOUSE_WIFI' },
+      })
+      throw app.httpErrors.forbidden('Clocking is only available on warehouse Wi-Fi.')
+    }
+
+    // Device binding required for punch tokens
+    if (!deviceId) {
+      await prisma.staffingTimeEvent.create({
+        data: { ...baseEvent, status: 'BLOCKED', reason: 'PERMISSION_DENIED' },
+      })
+      throw app.httpErrors.badRequest('Missing device id.')
+    }
+
+    // MUST #5 — Rate limits (best-effort in-memory)
+    const ipKey = ipAddress ? `ip:${ipAddress}` : 'ip:unknown'
+    const userKey = `user:${ctx.userId}`
+    const ipHit = IP_PUNCH_LIMITER.hit(ipKey)
+    const userHit = USER_PUNCH_LIMITER.hit(userKey)
+    if (!ipHit.allowed || !userHit.allowed) {
+      await prisma.staffingTimeEvent.create({
+        data: { ...baseEvent, status: 'BLOCKED', reason: 'RATE_LIMITED' },
+      })
+      throw app.httpErrors.tooManyRequests('Too many clock attempts. Please wait and try again.')
+    }
+
+    // MUST #5 — Idempotency key required
+    if (!idempotencyKey) {
+      await prisma.staffingTimeEvent.create({
+        data: { ...baseEvent, status: 'BLOCKED', reason: 'MISSING_IDEMPOTENCY_KEY' },
+      })
+      throw app.httpErrors.badRequest('Missing idempotency key.')
+    }
+    const exists = await prisma.staffingTimeEvent.findFirst({
+      where: { idempotencyKey, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+      select: { id: true },
+    })
+    if (exists) {
+      await prisma.staffingTimeEvent.create({
+        data: { ...baseEvent, status: 'BLOCKED', reason: 'REUSED_IDEMPOTENCY_KEY' },
+      })
+      throw app.httpErrors.conflict('Duplicate clock request (idempotency key already used).')
+    }
+
+    // MUST #4 — Punch token required + bound to userId + deviceId (+ UA hash)
+    if (!punchToken) {
+      await prisma.staffingTimeEvent.create({
+        data: { ...baseEvent, status: 'BLOCKED', reason: 'INVALID_PUNCH_TOKEN' },
+      })
+      throw app.httpErrors.forbidden('Session not authorized for clock actions. Please refresh.')
+    }
+    const tokenHash = sha256Hex(punchToken)
+    const uaHash = userAgentHash(req)
+    const tokenRow = await prisma.staffingPunchToken.findFirst({
+      where: {
+        userId: ctx.userId,
+        deviceId,
+        tokenHash,
+        revokedAt: null,
+        expiresAt: { gt: serverNow },
+      },
+      select: { id: true, userAgentHash: true },
+    })
+    if (!tokenRow || (tokenRow.userAgentHash && tokenRow.userAgentHash !== uaHash)) {
+      await prisma.staffingTimeEvent.create({
+        data: { ...baseEvent, status: 'BLOCKED', reason: 'INVALID_PUNCH_TOKEN' },
+      })
+      throw app.httpErrors.forbidden('Session not authorized for clock actions. Please refresh.')
+    }
+    await prisma.staffingPunchToken.update({ where: { id: tokenRow.id }, data: { lastSeenAt: serverNow } })
+
+    // MUST #5 — Strict sequencing (invalid state blocks)
+    const reason: StaffingBlockReason | null = invalidState ? 'INVALID_STATE' : null
     if (reason) {
       await prisma.staffingTimeEvent.create({
-        data: {
-          userId: ctx.userId,
-          siteId: ctx.siteId,
-          agency,
-          type: requested,
-          status: 'BLOCKED',
-          reason,
-          serverTimestamp: new Date(),
-          geoLat: geo?.lat ?? null,
-          geoLng: geo?.lng ?? null,
-          accuracyMeters: geo?.accuracyMeters ?? null,
-          distanceMeters: distanceMeters ?? null,
-          inRange,
-          userAgent,
-          notes: body.notes ?? null,
-        },
+        data: { ...baseEvent, status: 'BLOCKED', reason, punchTokenId: tokenRow.id },
       })
-
-      if (reason === 'OUT_OF_RANGE') {
-        const miles = distanceMeters != null ? distanceMeters / 1609.344 : null
-        throw app.httpErrors.forbidden(`Out of range (${miles ? miles.toFixed(2) : '—'} mi from site).`)
-      }
-      if (reason === 'LOCATION_UNAVAILABLE') throw app.httpErrors.forbidden('Location unavailable.')
-      if (reason === 'INVALID_STATE') throw app.httpErrors.forbidden('Invalid clock state for this action.')
-      throw app.httpErrors.forbidden('Blocked.')
+      throw app.httpErrors.forbidden('Invalid clock state for this action.')
     }
 
     await prisma.staffingTimeEvent.create({
-      data: {
-        userId: ctx.userId,
-        siteId: ctx.siteId,
-        agency,
-        type: requested,
-        status: 'OK',
-        reason: null,
-        serverTimestamp: new Date(),
-        geoLat: geo?.lat ?? null,
-        geoLng: geo?.lng ?? null,
-        accuracyMeters: geo?.accuracyMeters ?? null,
-        distanceMeters: distanceMeters ?? null,
-        inRange,
-        userAgent,
-        notes: body.notes ?? null,
-      },
+      data: { ...baseEvent, status: 'OK', reason: null, punchTokenId: tokenRow.id },
     })
 
     return { ok: true }

@@ -38,8 +38,8 @@ export const AlertBanner = ({
   right,
 }: {
   tone: AlertTone
-  icon: LucideIcon
-  title: string
+  icon?: LucideIcon
+  title: ReactNode
   description?: ReactNode
   right?: ReactNode
 }) => {
@@ -47,11 +47,13 @@ export const AlertBanner = ({
   return (
     <div className={`flex items-start justify-between gap-4 rounded-2xl border px-5 py-4 ${s.wrap}`}>
       <div className="flex items-start gap-3">
-        <div className={`mt-0.5 ${s.icon}`}>
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </div>
+        {Icon ? (
+          <div className={`mt-0.5 ${s.icon}`}>
+            <Icon className="h-5 w-5" aria-hidden="true" />
+          </div>
+        ) : null}
         <div>
-          <div className={`text-sm font-semibold ${s.title}`}>{title}</div>
+          <div className={`text-sm ${typeof title === 'string' ? 'font-semibold' : ''} ${s.title}`}>{title}</div>
           {description ? <div className={`mt-1 text-sm leading-6 ${s.body}`}>{description}</div> : null}
         </div>
       </div>
