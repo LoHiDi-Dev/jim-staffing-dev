@@ -268,7 +268,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                     {(verificationMode === 'wifi' && wifiOk) ||
                     (verificationMode === 'location' && verified) ||
                     (verificationMode === 'auto' && (wifiOk || verified))
-                      ? 'Ready'
+                      ? 'Passed'
                       : 'Not verified'}
                   </Badge>
                 </div>
