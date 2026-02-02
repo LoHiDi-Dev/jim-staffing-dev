@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import type { ServerUser } from '../../api/auth'
 import { AlertBanner } from '../../components/ui/AlertBanner'
 import { Badge } from '../../components/ui/Badge'
-import { DangerButton, SecondaryButton, SuccessButton } from '../../components/ui/Button'
+import { DangerButton, PrimaryButton, SecondaryButton, SuccessButton } from '../../components/ui/Button'
 import { Card, CardBody, CardHeader } from '../../components/ui/Card'
 import { ui } from '../../components/ui/tokens'
 import { apiStaffingEvent, apiStaffingState, apiSubmitSignature, type StaffingClockState } from '../../api/staffing'
@@ -445,9 +445,9 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                       <SignaturePad ref={sigRef} />
                     </div>
                     <div className="mt-3 flex items-center justify-end">
-                      <SuccessButton type="button" disabled={busySig} onClick={() => void submitSignature()}>
+                      <PrimaryButton type="button" disabled={busySig} onClick={() => void submitSignature()}>
                         {busySig ? 'Submitting…' : 'Submit signature'}
-                      </SuccessButton>
+                      </PrimaryButton>
                     </div>
                   </div>
                 ) : null}
