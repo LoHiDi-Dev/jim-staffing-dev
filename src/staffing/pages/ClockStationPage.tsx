@@ -242,7 +242,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                       : 'Not verified'}
                   </Badge>
                 </div>
-                {verificationMode !== 'auto' ? (
+                {verificationMode !== 'auto' && !wifiOk ? (
                   <div className="mt-1 text-right">
                     <button
                       type="button"
@@ -279,7 +279,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                       Recheck
                     </SecondaryButton>
                   </div>
-                  {verificationMode === 'wifi' ? (
+                  {verificationMode === 'wifi' && !wifiOk ? (
                     <div className="mt-2 text-center">
                       <button
                         type="button"
