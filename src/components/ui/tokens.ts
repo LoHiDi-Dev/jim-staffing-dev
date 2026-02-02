@@ -1,14 +1,15 @@
 export const ui = {
   page: {
-    bg: 'bg-slate-100/70 px-4 py-10 sm:px-6',
+    // Mobile-first: tighter vertical rhythm for an "app" feel.
+    bg: 'bg-[#f4f6fb] px-4 py-6 sm:px-6 sm:py-10',
     container: 'mx-auto w-full max-w-7xl',
     containerNarrow: 'mx-auto w-full max-w-5xl',
   },
   card: {
     base: 'rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden',
     pad: 'p-6',
-    header: 'border-b border-slate-200 px-6 py-4',
-    body: 'px-6 py-5',
+    header: 'border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4',
+    body: 'px-4 py-4 sm:px-6 sm:py-5',
   },
   typography: {
     // Page title

@@ -77,7 +77,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
   return (
     <div className={ui.page.bg}>
       <div className={ui.page.container}>
-        <div className="mb-6 text-center">
+        <div className="mb-4 text-center sm:mb-6">
           <div className="text-3xl font-semibold tracking-tight text-[color:var(--brand-primary)] md:text-4xl">
             <span aria-hidden="true" className="mr-2 inline-block jim-wave-once">
               👋
@@ -90,7 +90,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
         </div>
 
         {/* Tabs */}
-        <div className="mx-auto mb-6 w-full max-w-7xl" role="tablist" aria-label="My times sections">
+        <div className="mx-auto mb-4 w-full max-w-7xl sm:mb-6" role="tablist" aria-label="My times sections">
           <div className="overflow-x-auto">
             <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
               {[
