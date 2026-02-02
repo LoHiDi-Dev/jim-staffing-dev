@@ -27,8 +27,11 @@ Notes:
 - Weekly employee PDF:
   - backend test asserts PDF generated and **1 page** ✅
   - Playwright test asserts PDF downloads and parses as **1 page** ✅
-- Manual PDF visual/stress checks: ⏳ **Pending human signoff**
-  - Checklist: `docs/jim-staffing/PDF_VISUAL_SIGNOFF.md`
+- Release evidence PDFs:
+  - `npm run evidence:pdf` generates PDFs + screenshots ✅
+  - automated signoff asserts 1 page + 8 rows + DAY/NIGHT + signed markers ✅
+- Manual PDF visual/stress checks: ✅ **Optional (non-blocking)**
+  - Template checklist (optional): `docs/jim-staffing/PDF_VISUAL_SIGNOFF.md`
   - Evidence folders: `docs/jim-staffing/release-evidence/*`
 
 ### Agency endpoint protection

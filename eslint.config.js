@@ -9,6 +9,25 @@ export default tseslint.config(
   {
     ignores: ['dist/**', 'node_modules/**', 'server/**'],
   },
+  // Node scripts/configs (no bundler globals)
+  {
+    files: ['scripts/**/*.{js,mjs,cjs}', '*.{js,mjs,cjs}', 'playwright.config.ts'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+      },
+    },
+    rules: {
+      // Allow tiny scripts to use console output for CI evidence.
+      'no-console': 'off',
+    },
+  },
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {

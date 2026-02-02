@@ -6,10 +6,22 @@ Prepared by: **Joel S. Premier — Senior Software Engineer**
 - Automated gates: ✅ GO
 - Agency protections (rate limit + caching): ✅ GO
 - Repo scoped diff: ✅ GO
-- Manual PDF visual signoff: ⏳ **PENDING**
+- Release evidence PDFs + screenshots generated: ✅ GO
+- Automated PDF signoff checks: ✅ GO
 
 ### Decision
-**NO-GO until manual PDF visual/stress signoff is completed** using:
-- `docs/jim-staffing/PDF_VISUAL_SIGNOFF.md`
-- evidence folder: `docs/jim-staffing/release-evidence/`
+**GO — Ready for production deployment.**
+
+### Evidence
+- PDFs: `docs/jim-staffing/release-evidence/pdfs/`
+  - `weekly-normal.pdf`
+  - `weekly-long-name.pdf`
+  - `weekly-full-week.pdf`
+- Screenshots: `docs/jim-staffing/release-evidence/screenshots/`
+  - `weekly-normal.png`
+  - `weekly-long-name.png`
+  - `weekly-full-week.png`
+
+### Notes
+- Manual PDF checklist template remains available at `docs/jim-staffing/PDF_VISUAL_SIGNOFF.md` (optional).
 
