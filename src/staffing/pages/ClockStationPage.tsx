@@ -91,10 +91,11 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
   }, [])
 
   const verified = geo.state === 'ok' && geo.inRange && geo.accuracyOk
-  const wifiOk = clockState?.wifiAllowlistStatus && clockState.wifiAllowlistStatus !== 'FAIL'
+  const wifiOk = clockState?.wifiAllowlistStatus === 'PASS' || clockState?.wifiAllowlistStatus === 'DEV_BYPASS'
 
-  // Geofence is a secondary check (for visibility + auditing). Primary enforcement is server-side warehouse Wi‑Fi allowlist.
-  const canAct = online && !busyGeo && (verified || Boolean(wifiOk))
+  // Verification is OR-based: Wi‑Fi allowlist OR verified location.
+  // Do not block actions while location is refreshing if Wi‑Fi is already verified.
+  const canAct = online && (wifiOk || verified)
 
   const doEvent = async (type: 'CLOCK_IN' | 'LUNCH_START' | 'CLOCK_OUT') => {
     setErr(null)
@@ -199,6 +200,10 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-base sm:text-sm font-extrabold text-slate-900">DTX Wi‑Fi</div>
                     <Badge tone={wifiOk ? 'success' : 'warn'}>{wifiOk ? 'Connected' : 'Not connected'}</Badge>
+                  </div>
+                  <div className="mt-1 text-sm sm:text-xs text-slate-500">
+                    Join <span className="font-semibold text-slate-700">JW- Guest WiFi</span> or{' '}
+                    <span className="font-semibold text-slate-700">JillamyWHSE-WiFi</span>.
                   </div>
                   <div className="mt-3">
                     <SecondaryButton type="button" className="h-11 w-full justify-center text-base sm:text-sm" onClick={refreshState}>
