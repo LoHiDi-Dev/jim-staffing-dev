@@ -106,7 +106,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
             </span>
             Welcome back, {firstName}!
           </div>
-          <div className="mt-2 text-xs md:text-sm leading-5 text-slate-500">
+          <div className="mt-2 text-sm sm:text-xs md:text-sm leading-5 text-slate-500">
             {STAFFING_COPY.headerSubtitle}
           </div>
         </div>
@@ -129,7 +129,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
                     aria-selected={active}
                     aria-pressed={active}
                     onClick={() => nav(tab.to)}
-                    className={`${ui.focusRing} cursor-pointer inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                    className={`${ui.focusRing} cursor-pointer inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 sm:py-2.5 text-base sm:text-sm font-semibold transition ${
                       active
                         ? 'bg-[color:var(--brand-primary)] text-white shadow-sm'
                         : 'text-slate-800 hover:bg-slate-50 enabled:hover:-translate-y-[1px] enabled:hover:shadow-md active:translate-y-[1px]'
@@ -177,8 +177,8 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
                   { label: 'Status', value: events ? (summary.status === 'OK' ? 'OK' : 'Needs review') : '—' },
                 ].map((k) => (
                   <div key={k.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-xs font-semibold text-slate-600">{k.label}</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-900">{k.value}</div>
+                    <div className="text-sm sm:text-xs font-semibold text-slate-600">{k.label}</div>
+                    <div className="mt-1 text-base sm:text-sm font-semibold text-slate-900">{k.value}</div>
                   </div>
                 ))}
               </div>
@@ -186,7 +186,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
               <div className="mt-5 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold ${ui.focusRing} ${
+                  className={`rounded-xl px-4 py-2.5 sm:py-2 text-base sm:text-sm font-semibold ${ui.focusRing} ${
                     tab === 'this' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                   onClick={() => setTab('this')}
@@ -195,7 +195,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
                 </button>
                 <button
                   type="button"
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold ${ui.focusRing} ${
+                  className={`rounded-xl px-4 py-2.5 sm:py-2 text-base sm:text-sm font-semibold ${ui.focusRing} ${
                     tab === 'last' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                   onClick={() => setTab('last')}
@@ -209,16 +209,16 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
                     <Loader2 className="h-6 w-6 animate-spin text-slate-500" aria-hidden="true" />
                   </div>
-                  <div className="mt-4 text-sm font-semibold text-slate-900">Loading time records…</div>
-                  <div className="mt-1 text-sm text-slate-600">Syncing your punches.</div>
+                  <div className="mt-4 text-base sm:text-sm font-semibold text-slate-900">Loading time records…</div>
+                  <div className="mt-1 text-base sm:text-sm text-slate-600">Syncing your punches.</div>
                 </div>
               ) : !events || days.length === 0 ? (
                 <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
                     <CalendarDays className="h-6 w-6 text-slate-500" aria-hidden="true" />
                   </div>
-                  <div className="mt-4 text-sm font-semibold text-slate-900">No time records found</div>
-                  <div className="mt-1 text-sm text-slate-600">Clock in from the Clock Station to create your first record.</div>
+                  <div className="mt-4 text-base sm:text-sm font-semibold text-slate-900">No time records found</div>
+                  <div className="mt-1 text-base sm:text-sm text-slate-600">Clock in from the Clock Station to create your first record.</div>
                 </div>
               ) : (
                 <div className="mt-5">
@@ -231,24 +231,24 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
                       return (
                         <div key={d.dayKey} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                           <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm font-extrabold text-[color:var(--brand-primary)]">{d.dayLabel}</div>
+                            <div className="text-base sm:text-sm font-extrabold text-[color:var(--brand-primary)]">{d.dayLabel}</div>
                             <Badge tone={tone}>{d.status === 'COMPLETE' ? 'Complete' : d.status === 'NO_CLOCK_OUT' ? 'Missing clock out' : '—'}</Badge>
                           </div>
-                          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                          <div className="mt-3 grid grid-cols-2 gap-3 text-base sm:text-sm">
                             <div>
-                              <div className="text-xs font-semibold text-slate-500">Clock In</div>
+                              <div className="text-sm sm:text-xs font-semibold text-slate-500">Clock In</div>
                               <div className="mt-1 font-semibold text-slate-900">{inLabel}</div>
                             </div>
                             <div>
-                              <div className="text-xs font-semibold text-slate-500">Clock Out</div>
+                              <div className="text-sm sm:text-xs font-semibold text-slate-500">Clock Out</div>
                               <div className="mt-1 font-semibold text-slate-900">{outLabel}</div>
                             </div>
                             <div>
-                              <div className="text-xs font-semibold text-slate-500">Hours</div>
+                              <div className="text-sm sm:text-xs font-semibold text-slate-500">Hours</div>
                               <div className="mt-1 font-semibold text-slate-900">{d.workedHours.toFixed(2)}</div>
                             </div>
                             <div>
-                              <div className="text-xs font-semibold text-slate-500">Lunch</div>
+                              <div className="text-sm sm:text-xs font-semibold text-slate-500">Lunch</div>
                               <div className="mt-1 font-semibold text-slate-900">{d.lunchMinutes ? `${d.lunchMinutes}m` : '—'}</div>
                             </div>
                           </div>

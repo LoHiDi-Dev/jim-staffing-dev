@@ -77,6 +77,21 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
     setTouched((prev) => ({ ...prev, [key]: true }))
   }
 
+  const switchLoginMethod = (next: 'fullName' | 'userId') => {
+    if (next === 'fullName') {
+      setReturningLoginMethod('fullName')
+      setReturningUserId('')
+    } else {
+      setReturningLoginMethod('userId')
+      setReturningFirstName('')
+      setReturningLastName('')
+    }
+    setReturningPinDigits(['', '', '', ''])
+    setRevealPin(false)
+    setFormError('')
+    setFieldErrors({})
+  }
+
   const handleSubmit = async () => {
     setSubmitAttempted(true)
     setFormError('')
@@ -181,7 +196,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
 
             {/* Step 1: User Type */}
             <div className="space-y-2">
-              <div className="text-sm font-semibold text-slate-900">Step 1: User Type</div>
+              <div className="text-base sm:text-sm font-semibold text-slate-900">Step 1: User Type</div>
               <SelectTileGroup
                 ariaLabel="User type"
                 columns={2}
@@ -199,7 +214,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
             {/* Step 2: Work Location */}
             {step1Done ? (
               <div className="space-y-2">
-                <div className="text-sm font-semibold text-slate-900">
+                <div className="text-base sm:text-sm font-semibold text-slate-900">
                   Step 2: Work Location <span className="text-rose-600">*</span>
                 </div>
                 <SelectTileGroup
@@ -225,7 +240,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                   }}
                 />
                 {showErr('location') && !loginLocation ? (
-                  <div className="text-sm font-semibold text-rose-700">Work location is required.</div>
+                  <div className="text-base sm:text-sm font-semibold text-rose-700">Work location is required.</div>
                 ) : null}
               </div>
             ) : null}
@@ -234,43 +249,43 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
             {step2Done && loginUserType === 'returning' ? (
               <div className="space-y-4">
                 {/* Step 3: Login Method */}
-                <div className="space-y-2">
-                  <div className="text-sm font-semibold text-slate-900">
+                {returningLoginMethod === null ? (
+                  <div className="space-y-2">
+                    <div className="text-base sm:text-sm font-semibold text-slate-900">
                     Step 3: Login Method <span className="text-rose-600">*</span>
+                    </div>
+                    <SelectTileGroup
+                      ariaLabel="Login method"
+                      columns={2}
+                      value={returningLoginMethod}
+                      options={[
+                        { value: 'fullName', label: 'Full Name' },
+                        { value: 'userId', label: 'User ID' },
+                      ]}
+                      onChange={(v) => {
+                        if (v === 'fullName' || v === 'userId') switchLoginMethod(v)
+                      }}
+                    />
+                    {showErr('returningLoginMethod') && !returningLoginMethod ? (
+                      <div className="text-base sm:text-sm font-semibold text-rose-700">Select a login method.</div>
+                    ) : null}
                   </div>
-                  <SelectTileGroup
-                    ariaLabel="Login method"
-                    columns={2}
-                    value={returningLoginMethod}
-                    options={[
-                      { value: 'fullName', label: 'Full Name' },
-                      { value: 'userId', label: 'User ID' },
-                    ]}
-                    onChange={(v) => {
-                      if (v === 'fullName') {
-                        setReturningLoginMethod('fullName')
-                        setReturningUserId('')
-                      } else if (v === 'userId') {
-                        setReturningLoginMethod('userId')
-                        setReturningFirstName('')
-                        setReturningLastName('')
-                      }
-                      setReturningPinDigits(['', '', '', ''])
-                      setRevealPin(false)
-                      setFormError('')
-                      setFieldErrors({})
-                    }}
-                  />
-                  {showErr('returningLoginMethod') && !returningLoginMethod ? (
-                    <div className="text-sm font-semibold text-rose-700">Select a login method.</div>
-                  ) : null}
-                </div>
+                ) : null}
 
                 {/* Step 4: Full Name or User ID */}
                 {returningLoginMethod === 'fullName' ? (
                   <div className="space-y-2">
-                    <div className="text-sm font-semibold text-slate-900">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <div className="text-base sm:text-sm font-semibold text-slate-900">
                       Step 4: Full Name <span className="text-rose-600">*</span>
+                    </div>
+                      <button
+                        type="button"
+                        className={`${ui.focusRing} text-sm sm:text-xs font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
+                        onClick={() => switchLoginMethod('userId')}
+                      >
+                        Switch to User ID
+                      </button>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <TextInput
@@ -301,17 +316,26 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                       />
                     </div>
                     {showErr('returningFirstName') && !returningFirstName.trim() ? (
-                      <div className="text-sm font-semibold text-rose-700">First name is required.</div>
+                      <div className="text-base sm:text-sm font-semibold text-rose-700">First name is required.</div>
                     ) : null}
                     {showErr('returningLastName') && !returningLastName.trim() ? (
-                      <div className="text-sm font-semibold text-rose-700">Last name is required.</div>
+                      <div className="text-base sm:text-sm font-semibold text-rose-700">Last name is required.</div>
                     ) : null}
                   </div>
                 ) : returningLoginMethod === 'userId' ? (
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-900">
-                      Step 4: User ID <span className="text-rose-600">*</span>
-                    </label>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <label className="block text-base sm:text-sm font-semibold text-slate-900">
+                        Step 4: User ID <span className="text-rose-600">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        className={`${ui.focusRing} text-sm sm:text-xs font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
+                        onClick={() => switchLoginMethod('fullName')}
+                      >
+                        Switch to Full Name
+                      </button>
+                    </div>
                     <TextInput
                       className="h-12 bg-slate-50"
                       aria-invalid={Boolean((showErr('returningUserId') && !returningUserId.trim()) || fieldErrors.returningUserId)}
@@ -326,7 +350,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                       placeholder="Enter your User ID"
                     />
                     {showErr('returningUserId') && !returningUserId.trim() ? (
-                      <div className="text-sm font-semibold text-rose-700">User ID is required.</div>
+                      <div className="text-base sm:text-sm font-semibold text-rose-700">User ID is required.</div>
                     ) : null}
                   </div>
                 ) : null}
@@ -335,7 +359,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                 {returningStep4Done ? (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-3">
-                      <label className="block text-sm font-semibold text-slate-900">
+                      <label className="block text-base sm:text-sm font-semibold text-slate-900">
                         Step 5: Enter PIN <span className="text-rose-600">*</span>
                       </label>
                       <button
@@ -402,20 +426,20 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                         ))}
                       </div>
                     </div>
-                    <div className="text-center text-sm text-slate-500">Enter your 4-digit PIN.</div>
+                    <div className="text-center text-base sm:text-sm text-slate-500">Enter your 4-digit PIN.</div>
                     {showErr('returningPin') && returningPin.length !== 4 ? (
-                      <div className="text-sm font-semibold text-rose-700">PIN must be 4 digits.</div>
+                      <div className="text-base sm:text-sm font-semibold text-rose-700">PIN must be 4 digits.</div>
                     ) : null}
                   </div>
                 ) : null}
               </div>
             ) : step2Done && loginUserType === 'firstTime' ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-base sm:text-sm text-amber-900">
                 First-time contractor setup is not available here. Contact the administrator to be added.
               </div>
             ) : null}
 
-            {formError ? <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{formError}</div> : null}
+            {formError ? <div className="rounded-xl bg-red-50 px-4 py-3 text-base sm:text-sm text-red-700">{formError}</div> : null}
 
             {/* Shared device */}
             <label className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-4">
@@ -426,8 +450,8 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                 aria-label="This is a shared device"
               />
               <div>
-                <div className="text-sm font-semibold text-slate-900">This is a shared device</div>
-                <div className="text-sm text-slate-500">You'll be logged out automatically after inactivity</div>
+                <div className="text-base sm:text-sm font-semibold text-slate-900">This is a shared device</div>
+                <div className="text-base sm:text-sm text-slate-500">You'll be logged out automatically after inactivity</div>
               </div>
             </label>
 
@@ -452,7 +476,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
             <div className="pt-1 text-center">
               <a
                 href="mailto:admin@jillamy.com"
-                className="text-sm text-slate-500 underline-offset-4 hover:text-slate-700 hover:underline"
+                className="text-base sm:text-sm text-slate-500 underline-offset-4 hover:text-slate-700 hover:underline"
               >
                 Forgot your PIN? Contact the administrator to reset
               </a>

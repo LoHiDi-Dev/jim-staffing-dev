@@ -60,8 +60,10 @@ export function SelectTileGroup(props: {
             </span>
 
             <div className="pr-8">
-              <div className={cx('text-sm font-semibold', isDisabled ? 'text-slate-400' : 'text-slate-900')}>{opt.label}</div>
-              {opt.sublabel ? <div className={cx('mt-0.5 text-xs', isDisabled ? 'text-slate-400' : 'text-slate-500')}>{opt.sublabel}</div> : null}
+              <div className={cx('text-base sm:text-sm font-semibold', isDisabled ? 'text-slate-400' : 'text-slate-900')}>{opt.label}</div>
+              {opt.sublabel ? (
+                <div className={cx('mt-0.5 text-sm sm:text-xs', isDisabled ? 'text-slate-400' : 'text-slate-500')}>{opt.sublabel}</div>
+              ) : null}
             </div>
           </button>
         )

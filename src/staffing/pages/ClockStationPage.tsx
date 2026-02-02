@@ -139,7 +139,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
             </span>
             Welcome back, {firstName}!
           </div>
-          <div className="mt-2 text-xs md:text-sm leading-5 text-slate-500">
+          <div className="mt-2 text-sm sm:text-xs md:text-sm leading-5 text-slate-500">
             {STAFFING_COPY.headerSubtitle}
           </div>
         </div>
@@ -162,7 +162,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                     aria-selected={active}
                     aria-pressed={active}
                     onClick={() => nav(tab.to)}
-                    className={`${ui.focusRing} cursor-pointer inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                    className={`${ui.focusRing} cursor-pointer inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 sm:py-2.5 text-base sm:text-sm font-semibold transition ${
                       active
                         ? 'bg-[color:var(--brand-primary)] text-white shadow-sm'
                         : 'text-slate-800 hover:bg-slate-50 enabled:hover:-translate-y-[1px] enabled:hover:shadow-md active:translate-y-[1px]'
@@ -189,15 +189,15 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
             <Card>
               <CardHeader className="px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-base font-extrabold text-[color:var(--brand-primary)]">Location Check</div>
+                  <div className="text-lg sm:text-base font-extrabold text-[color:var(--brand-primary)]">Location Check</div>
                   <Badge tone={verified ? 'success' : 'warn'}>{verified ? 'Verified' : 'Not verified'}</Badge>
                 </div>
               </CardHeader>
               <CardBody className="px-4 py-3 space-y-3">
-                <div className="flex items-center gap-2 text-sm text-slate-600">
+                <div className="flex items-center gap-2 text-base sm:text-sm text-slate-600">
                   <MapPin className="h-4 w-4 text-slate-400" aria-hidden="true" />
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-slate-900">{STAFFING_SITE.address}</div>
+                    <div className="text-base sm:text-sm font-semibold text-slate-900">{STAFFING_SITE.address}</div>
                   </div>
                 </div>
 
@@ -225,7 +225,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                 ) : null}
 
                 <div>
-                  <SecondaryButton type="button" className="h-9 w-full justify-center text-sm" onClick={refreshLocation} disabled={busyGeo}>
+                  <SecondaryButton type="button" className="h-11 w-full justify-center text-base sm:text-sm" onClick={refreshLocation} disabled={busyGeo}>
                     <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
                     {busyGeo ? 'Verifying…' : 'Verify location'}
                   </SecondaryButton>
@@ -244,10 +244,10 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                 </div>
               </CardHeader>
               <CardBody>
-                <div className="text-sm font-semibold text-slate-900">
+                <div className="text-base sm:text-sm font-semibold text-slate-900">
                   {clockState?.lastActionLabel ?? (clockState?.clockedIn ? "You're clocked in" : "You're clocked out")}
                 </div>
-                <div className="mt-1 text-xs text-slate-500">
+                <div className="mt-1 text-sm sm:text-xs text-slate-500">
                   {clockState?.lastSyncAt ? `Last update: ${new Date(clockState.lastSyncAt).toLocaleTimeString()}` : 'Offline/local mode'}
                 </div>
 
@@ -268,15 +268,15 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                   )}
                 </div>
 
-                <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm sm:text-xs text-slate-600">
                   Connection: <span className="font-semibold text-slate-900">{online ? 'Online' : 'Offline'}</span> • Updated{' '}
                   <span className="font-semibold text-slate-900">{clockState?.lastSyncAt ? new Date(clockState.lastSyncAt).toLocaleTimeString() : '—'}</span>
                 </div>
 
                 {clockState?.signatureRequired ? (
                   <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="text-sm font-extrabold text-[color:var(--brand-primary)]">Signature Required</div>
-                    <div className="mt-1 text-sm text-slate-600">Please sign to complete your shift.</div>
+                    <div className="text-base sm:text-sm font-extrabold text-[color:var(--brand-primary)]">Signature Required</div>
+                    <div className="mt-1 text-base sm:text-sm text-slate-600">Please sign to complete your shift.</div>
                     <div className="mt-3">
                       <SignaturePad ref={sigRef} />
                     </div>
