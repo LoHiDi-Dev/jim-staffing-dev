@@ -125,7 +125,8 @@ export function StaffingApp() {
   const mustLogin = authStatus === 'anon' && loc.pathname !== '/login'
   if (mustLogin) return <Navigate to="/login" replace />
 
-  if (authStatus === 'loading') {
+  // Render /login immediately even while checking session (avoids slow/cold-start blocking screen).
+  if (authStatus === 'loading' && loc.pathname !== '/login') {
     return (
       <div className="min-h-screen bg-slate-100/70 px-4 py-10 sm:px-6">
         <div className="mx-auto w-full max-w-3xl">
