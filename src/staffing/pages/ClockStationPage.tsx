@@ -261,7 +261,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                       (verificationMode === 'wifi' && wifiOk) ||
                       (verificationMode === 'location' && verified) ||
                       (verificationMode === 'auto' && (wifiOk || verified))
-                        ? 'success'
+                        ? 'neutral'
                         : 'warn'
                     }
                   >
