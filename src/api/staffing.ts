@@ -15,6 +15,9 @@ export type StaffingClockState = {
   onLunch: boolean
   lastActionLabel?: string
   lastSyncAt?: string
+  wifiAllowlistStatus?: 'PASS' | 'FAIL' | 'DEV_BYPASS'
+  signatureRequired?: boolean
+  shiftId?: string | null
 }
 
 export type StaffingEventType = 'CLOCK_IN' | 'LUNCH_START' | 'LUNCH_END' | 'CLOCK_OUT'
@@ -89,12 +92,12 @@ export async function apiStaffingEvent(args: {
   type: StaffingEventType
   geo?: { lat: number; lng: number; accuracyMeters?: number }
   notes?: string
-}): Promise<{ ok: boolean }> {
+}): Promise<{ ok: boolean; shiftId?: string; signatureRequired?: boolean }> {
   const deviceId = getOrCreateDeviceId()
   const punchToken = await getValidPunchToken()
   const idempotencyKey = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
 
-  return await apiFetch<{ ok: boolean }>('/staffing/events', {
+  return await apiFetch<{ ok: boolean; shiftId?: string; signatureRequired?: boolean }>('/staffing/events', {
     method: 'POST',
     headers: {
       'x-staffing-device-id': deviceId,
@@ -121,5 +124,17 @@ export async function apiMyTimes(args: { week: 'this' | 'last' }): Promise<Staff
 export async function apiMyTimesExportCsv(args: { week: 'this' | 'last' }): Promise<Blob> {
   const q = new URLSearchParams({ week: args.week })
   return await apiFetchBlob(`/staffing/my-times/export.csv?${q.toString()}`, { method: 'GET' })
+}
+
+export async function apiMyTimesExportPdf(args: { week: 'this' | 'last' }): Promise<Blob> {
+  const q = new URLSearchParams({ week: args.week })
+  return await apiFetchBlob(`/staffing/my-times/export.pdf?${q.toString()}`, { method: 'GET' })
+}
+
+export async function apiSubmitSignature(args: { shiftId: string; signaturePngBase64: string }): Promise<{ ok: boolean }> {
+  return await apiFetch<{ ok: boolean }>(`/attendance/${encodeURIComponent(args.shiftId)}/signature`, {
+    method: 'POST',
+    body: { signaturePngBase64: args.signaturePngBase64 },
+  })
 }
 
