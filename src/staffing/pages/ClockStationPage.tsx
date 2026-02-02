@@ -196,22 +196,22 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
   }
 
   return (
-    <div className={ui.page.bg}>
+    <div className="bg-[#f4f6fb] px-4 py-4 sm:px-6 sm:py-5">
       <div className={ui.page.container}>
-        <div className="mb-4 text-center sm:mb-6">
-          <div className="text-3xl font-semibold tracking-tight text-[color:var(--brand-primary)] md:text-4xl">
+        <div className="mb-3 text-center sm:mb-4">
+          <div className="text-3xl font-semibold tracking-tight text-[color:var(--brand-primary)] lg:text-4xl">
             <span aria-hidden="true" className="mr-2 inline-block jim-wave-once">
               👋
             </span>
             Welcome back, {firstName}!
           </div>
-          <div className="mt-2 text-sm sm:text-xs md:text-sm leading-5 text-slate-500">
+          <div className="mt-1 text-sm sm:text-xs md:text-sm leading-5 text-slate-500">
             {STAFFING_COPY.headerSubtitle}
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="mx-auto mb-4 w-full max-w-7xl sm:mb-6" role="tablist" aria-label="Clock station sections">
+        <div className="mx-auto mb-3 w-full max-w-7xl sm:mb-4" role="tablist" aria-label="Clock station sections">
           <div className="overflow-x-auto">
             <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
               {[
@@ -244,12 +244,12 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
         </div>
 
         {err ? (
-          <div className="mb-4">
+          <div className="mb-3">
             <AlertBanner tone="danger" icon={Timer} title={err} />
           </div>
         ) : null}
 
-        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-3 lg:grid-cols-[360px_1fr]">
           {/* Left Column - Verification (Wi‑Fi OR Location) */}
           <section className="space-y-4">
             <Card>
@@ -434,13 +434,13 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                   )}
                 </div>
 
-                <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm sm:text-xs text-slate-600">
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm sm:text-xs text-slate-600">
                   Connection: <span className="font-semibold text-slate-900">{online ? 'Online' : 'Offline'}</span> • Updated{' '}
                   <span className="font-semibold text-slate-900">{clockState?.lastSyncAt ? new Date(clockState.lastSyncAt).toLocaleTimeString() : '—'}</span>
                 </div>
 
                 {clockState?.signatureRequired ? (
-                  <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
                     <div className="text-base sm:text-sm font-extrabold text-[color:var(--brand-primary)]">Signature Required</div>
                     <div className="mt-1 text-base sm:text-sm text-slate-600">Please sign to complete your shift.</div>
                     <div className="mt-3">
