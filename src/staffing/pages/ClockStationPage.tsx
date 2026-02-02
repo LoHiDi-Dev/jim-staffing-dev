@@ -46,12 +46,15 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
 
   const firstName = useMemo(() => (user?.name ? user.name.split(' ')[0] : 'there'), [user?.name])
 
-  const refreshState = async () => {
+  const refreshState = async (): Promise<StaffingClockState | null> => {
     try {
       const s = await apiStaffingState()
       setClockState(s)
+      return s
     } catch {
-      setClockState({ clockedIn: false, onLunch: false, lastActionLabel: undefined, lastSyncAt: undefined })
+      const fallback: StaffingClockState = { clockedIn: false, onLunch: false, lastActionLabel: undefined, lastSyncAt: undefined }
+      setClockState(fallback)
+      return fallback
     }
   }
 
@@ -83,9 +86,23 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
   }
 
   useEffect(() => {
-    void refreshState()
-    void refreshLocation()
-  }, [])
+    const run = async () => {
+      const s = await refreshState()
+      const wifiOkNow = s?.wifiAllowlistStatus === 'PASS' || s?.wifiAllowlistStatus === 'DEV_BYPASS'
+
+      // If Wi‑Fi is already verified, don’t prompt for location permission on login.
+      // Only request location when Wi‑Fi isn't verified, or if user explicitly chose location mode.
+      if (wifiOkNow && verificationMode !== 'location') {
+        if (verificationMode === 'auto') setMode('wifi')
+        return
+      }
+
+      await refreshLocation()
+    }
+    void run()
+    // Intentionally omit refreshState/refreshLocation/setMode from deps (stable within component lifetime).
+    // We re-run if verificationMode changes (e.g., user explicitly chooses location mode).
+  }, [verificationMode])
 
   useEffect(() => {
     const on = () => setOnline(true)
