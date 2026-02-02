@@ -155,7 +155,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
   return (
     <div className="min-h-screen bg-[#f4f6fb]">
       {/* Match jim-web-main desktop shell; keep mobile slightly higher */}
-      <div className="flex min-h-screen items-start justify-center overflow-x-hidden px-4 pb-4 pt-6 sm:h-full sm:items-center sm:px-6 sm:py-4 sm:overflow-x-visible">
+      <div className="flex min-h-screen items-start justify-center overflow-x-hidden px-4 pb-4 pt-6 sm:items-start sm:px-6 sm:pb-4 sm:pt-10 sm:overflow-x-visible">
         <div className="relative w-full max-w-[480px] rounded-2xl bg-white px-6 py-6 shadow-[0_14px_35px_rgba(15,23,42,0.12)] ring-1 ring-slate-200">
           <button
             type="button"
