@@ -265,16 +265,19 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
               )}
 
               <div className="mt-6 border-t border-slate-200 pt-4">
+                <div className="flex items-center justify-end">
                 <Button
-                  variant="outline"
+                  variant="primary"
+                  size="lg"
                   type="button"
                   onClick={() => void downloadPdf()}
                   disabled={downloadingPdf || busy || !events}
-                  className="w-full justify-center"
+                  className="w-full justify-center md:w-auto md:min-w-[220px]"
                 >
                   {downloadingPdf ? 'Downloading…' : 'Download PDF'}
                   {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
                 </Button>
+                </div>
               </div>
             </CardBody>
           </Card>
