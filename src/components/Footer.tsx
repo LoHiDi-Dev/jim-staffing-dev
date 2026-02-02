@@ -1,6 +1,7 @@
 import { ui } from './ui/tokens'
 
 export function Footer() {
+  const mailto = 'mailto:joel.premier@lohidi.com'
   return (
     <footer className="mt-auto border-t border-slate-200" role="contentinfo">
       <div className="mx-auto w-full max-w-7xl px-6 py-3 text-center">
@@ -13,7 +14,14 @@ export function Footer() {
             <span className="md:hidden">
               Designed with ❤️ in Dallas, Texas 🇺🇸 by{' '}
               <a
-                href="mailto:joel.premier@lohidi.com"
+                href={mailto}
+                onClick={() => {
+                  try {
+                    window.location.href = mailto
+                  } catch {
+                    // ignore
+                  }
+                }}
                 className={`${ui.focusRing} rounded underline-offset-4 hover:text-slate-700 hover:underline`}
               >
                 Joel S. Premier
@@ -22,7 +30,14 @@ export function Footer() {
             <span className="hidden md:inline">
               Designed & developed with ❤️ in Dallas, Texas 🇺🇸 by{' '}
               <a
-                href="mailto:joel.premier@lohidi.com"
+                href={mailto}
+                onClick={() => {
+                  try {
+                    window.location.href = mailto
+                  } catch {
+                    // ignore
+                  }
+                }}
                 className={`${ui.focusRing} rounded underline-offset-4 hover:text-slate-700 hover:underline`}
               >
                 Joel S. Premier
