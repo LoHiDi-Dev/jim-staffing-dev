@@ -13,23 +13,19 @@ export function Footer() {
             <span className="md:hidden">
               Designed with ❤️ in Dallas, Texas 🇺🇸 by{' '}
               <a
-                href="https://www.lohidi.com"
-                target="_blank"
-                rel="noreferrer"
+                href="mailto:joel.premier@lohidi.com"
                 className={`${ui.focusRing} rounded underline-offset-4 hover:text-slate-700 hover:underline`}
               >
-                LoHiDi®
+                Joel S. Premier
               </a>
             </span>
             <span className="hidden md:inline">
               Designed & developed with ❤️ in Dallas, Texas 🇺🇸 by{' '}
               <a
-                href="https://www.lohidi.com"
-                target="_blank"
-                rel="noreferrer"
+                href="mailto:joel.premier@lohidi.com"
                 className={`${ui.focusRing} rounded underline-offset-4 hover:text-slate-700 hover:underline`}
               >
-                LoHiDi®
+                Joel S. Premier
               </a>
             </span>
           </div>
