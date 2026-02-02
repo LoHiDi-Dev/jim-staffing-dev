@@ -28,7 +28,18 @@ type GeoStatus =
 export function ClockStationPage({ user }: { user: ServerUser }) {
   const [geo, setGeo] = useState<GeoStatus>({ state: 'idle' })
   const [busyGeo, setBusyGeo] = useState(false)
-  const [clockState, setClockState] = useState<StaffingClockState | null>(null)
+  const clockStateCacheKey = useMemo(() => `jim.staffing.clockState.${user.id}`, [user.id])
+  const [clockState, setClockState] = useState<StaffingClockState | null>(() => {
+    try {
+      const raw = sessionStorage.getItem(clockStateCacheKey)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as Partial<StaffingClockState>
+      if (typeof parsed.clockedIn !== 'boolean' || typeof parsed.onLunch !== 'boolean') return null
+      return parsed as StaffingClockState
+    } catch {
+      return null
+    }
+  })
   const [err, setErr] = useState<string | null>(null)
   const [online, setOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true))
   const loc = useLocation()
@@ -50,11 +61,25 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
     try {
       const s = await apiStaffingState()
       setClockState(s)
+      try {
+        sessionStorage.setItem(clockStateCacheKey, JSON.stringify(s))
+      } catch {
+        // ignore
+      }
       return s
     } catch {
-      const fallback: StaffingClockState = { clockedIn: false, onLunch: false, lastActionLabel: undefined, lastSyncAt: undefined }
-      setClockState(fallback)
-      return fallback
+      // Don't overwrite cached state on transient failures (prevents UI flicker).
+      if (!clockState) {
+        const fallback: StaffingClockState = {
+          clockedIn: false,
+          onLunch: false,
+          lastActionLabel: undefined,
+          lastSyncAt: undefined,
+        }
+        setClockState(fallback)
+        return fallback
+      }
+      return clockState
     }
   }
 
@@ -87,7 +112,13 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
 
   useEffect(() => {
     const run = async () => {
-      const s = await refreshState()
+      const s = await apiStaffingState()
+      setClockState(s)
+      try {
+        sessionStorage.setItem(clockStateCacheKey, JSON.stringify(s))
+      } catch {
+        // ignore
+      }
       const wifiOkNow = s?.wifiAllowlistStatus === 'PASS' || s?.wifiAllowlistStatus === 'DEV_BYPASS'
 
       // If Wi‑Fi is already verified, don’t prompt for location permission on login.
@@ -100,9 +131,8 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
       await refreshLocation()
     }
     void run()
-    // Intentionally omit refreshState/refreshLocation/setMode from deps (stable within component lifetime).
     // We re-run if verificationMode changes (e.g., user explicitly chooses location mode).
-  }, [verificationMode])
+  }, [verificationMode, clockStateCacheKey])
 
   useEffect(() => {
     const on = () => setOnline(true)
