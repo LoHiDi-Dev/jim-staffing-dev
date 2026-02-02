@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapPin, RefreshCw, Timer, Clock, FileText } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ServerUser } from '../../api/auth'
@@ -7,9 +7,10 @@ import { Badge } from '../../components/ui/Badge'
 import { DangerButton, SecondaryButton, SuccessButton } from '../../components/ui/Button'
 import { Card, CardBody, CardHeader } from '../../components/ui/Card'
 import { ui } from '../../components/ui/tokens'
-import { apiStaffingEvent, apiStaffingState } from '../../api/staffing'
+import { apiStaffingEvent, apiStaffingState, apiSubmitSignature, type StaffingClockState } from '../../api/staffing'
 import { haversineMeters, metersToMiles, STAFFING_SITE } from '../lib/geo'
 import { STAFFING_COPY } from '../copy'
+import { SignaturePad, type SignaturePadHandle } from '../components/SignaturePad'
 
 type GeoStatus =
   | { state: 'idle' }
@@ -27,11 +28,13 @@ type GeoStatus =
 export function ClockStationPage({ user }: { user: ServerUser }) {
   const [geo, setGeo] = useState<GeoStatus>({ state: 'idle' })
   const [busyGeo, setBusyGeo] = useState(false)
-  const [clockState, setClockState] = useState<{ clockedIn: boolean; onLunch: boolean; lastActionLabel?: string; lastSyncAt?: string } | null>(null)
+  const [clockState, setClockState] = useState<StaffingClockState | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [online, setOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true))
   const loc = useLocation()
   const nav = useNavigate()
+  const sigRef = useRef<SignaturePadHandle | null>(null)
+  const [busySig, setBusySig] = useState(false)
 
   const firstName = useMemo(() => (user?.name ? user.name.split(' ')[0] : 'there'), [user?.name])
 
@@ -88,9 +91,10 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
   }, [])
 
   const verified = geo.state === 'ok' && geo.inRange && geo.accuracyOk
+  const wifiOk = clockState?.wifiAllowlistStatus && clockState.wifiAllowlistStatus !== 'FAIL'
 
   // Geofence is a secondary check (for visibility + auditing). Primary enforcement is server-side warehouse Wi‑Fi allowlist.
-  const canAct = online && !busyGeo
+  const canAct = online && !busyGeo && (verified || Boolean(wifiOk))
 
   const doEvent = async (type: 'CLOCK_IN' | 'LUNCH_START' | 'CLOCK_OUT') => {
     setErr(null)
@@ -101,6 +105,27 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
     } catch (e) {
       const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message?: unknown }).message) : 'Action failed.'
       setErr(msg)
+    }
+  }
+
+  const submitSignature = async () => {
+    if (!clockState?.signatureRequired || !clockState.shiftId) return
+    const pad = sigRef.current
+    if (!pad || pad.isEmpty()) {
+      setErr('Please sign before submitting.')
+      return
+    }
+    setErr(null)
+    setBusySig(true)
+    try {
+      await apiSubmitSignature({ shiftId: clockState.shiftId, signaturePngBase64: pad.toDataURL() })
+      pad.clear()
+      await refreshState()
+    } catch (e) {
+      const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message?: unknown }).message) : 'Signature submission failed.'
+      setErr(msg)
+    } finally {
+      setBusySig(false)
     }
   }
 
@@ -125,7 +150,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
             <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
               {[
                 { key: 'clock-station', label: 'Clock Station', to: '/clock-station', icon: Clock },
-                { key: 'my-times', label: 'My Timecard', to: '/my-times', icon: FileText },
+                  { key: 'my-times', label: 'My Timecard', to: '/my-timecard', icon: FileText },
               ].map((tab) => {
                 const active = loc.pathname === tab.to
                 const Icon = tab.icon
@@ -202,7 +227,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                 <div>
                   <SecondaryButton type="button" className="h-9 w-full justify-center text-sm" onClick={refreshLocation} disabled={busyGeo}>
                     <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-                    {busyGeo ? 'Rechecking…' : 'Recheck Location'}
+                    {busyGeo ? 'Verifying…' : 'Verify location'}
                   </SecondaryButton>
                 </div>
               </CardBody>
@@ -247,6 +272,21 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                   Connection: <span className="font-semibold text-slate-900">{online ? 'Online' : 'Offline'}</span> • Updated{' '}
                   <span className="font-semibold text-slate-900">{clockState?.lastSyncAt ? new Date(clockState.lastSyncAt).toLocaleTimeString() : '—'}</span>
                 </div>
+
+                {clockState?.signatureRequired ? (
+                  <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="text-sm font-extrabold text-[color:var(--brand-primary)]">Signature Required</div>
+                    <div className="mt-1 text-sm text-slate-600">Please sign to complete your shift.</div>
+                    <div className="mt-3">
+                      <SignaturePad ref={sigRef} />
+                    </div>
+                    <div className="mt-3 flex items-center justify-end">
+                      <SuccessButton type="button" disabled={busySig} onClick={() => void submitSignature()}>
+                        {busySig ? 'Submitting…' : 'Submit signature'}
+                      </SuccessButton>
+                    </div>
+                  </div>
+                ) : null}
               </CardBody>
             </Card>
           </section>

@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: JIM Staffing Agency API
+  version: "1.0.0"
+  description: |
+    Prepared by: Joel S. Premier — Senior Software Engineer
+
+servers:
+  - url: /api/staffing/v1
+
+components:
+  securitySchemes:
+    bearerApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: API_KEY
+  schemas:
+    DailyRow:
+      type: object
+      properties:
+        dayIndex: { type: integer, minimum: 0, maximum: 6 }
+        date: { type: string, example: "2026-02-01" }
+        shift: { type: string, enum: [DAY, NIGHT, "—"] }
+        timeIn: { type: string, format: date-time, nullable: true }
+        timeOut: { type: string, format: date-time, nullable: true }
+        lunchMinutes: { type: integer, example: 30 }
+        hours: { type: number, example: 7.5 }
+        verifiedVia: { type: string, example: "Wi-Fi" }
+        signed: { type: boolean, nullable: true }
+      required: [dayIndex, date, shift, lunchMinutes, hours, verifiedVia, signed]
+    RateLimitError:
+      type: object
+      properties:
+        error: { type: string, enum: [rate_limited] }
+        retryAfterSeconds: { type: integer, minimum: 1 }
+      required: [error, retryAfterSeconds]
+
+security:
+  - bearerApiKey: []
+
+paths:
+  /time-records:
+    get:
+      summary: List raw time records (events)
+      parameters:
+        - in: query
+          name: dateFrom
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: dateTo
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: userId
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [OK, BLOCKED, ADJUSTED] }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 200, minimum: 1, maximum: 1000 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0, minimum: 0 }
+      responses:
+        "200":
+          description: OK
+        "429":
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+  /weekly-summary:
+    get:
+      summary: Weekly summary (hours + daysWorked per user)
+      parameters:
+        - in: query
+          name: dateFrom
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: dateTo
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: OK
+        "429":
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+  /timecard/daily-rows:
+    get:
+      summary: Daily rows (7 + totals) for a user
+      parameters:
+        - in: query
+          name: dateFrom
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: dateTo
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: userId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: siteId
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rows:
+                    type: array
+                    items: { $ref: "#/components/schemas/DailyRow" }
+                  totals:
+                    type: object
+                    properties:
+                      hours: { type: number }
+        "429":
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+  /timecard/pdf:
+    get:
+      summary: One-page PDF export for agency (cached)
+      parameters:
+        - in: query
+          name: dateFrom
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: dateTo
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: userId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: siteId
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: PDF
+          headers:
+            X-Cache:
+              schema: { type: string, enum: [HIT, MISS] }
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "429":
+          description: Too Many Requests
+          headers:
+            Retry-After:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RateLimitError" }
+

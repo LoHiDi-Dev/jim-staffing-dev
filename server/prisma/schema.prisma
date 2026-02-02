@@ -121,6 +121,18 @@ enum StaffingWifiAllowlistStatus {
   DEV_BYPASS
 }
 
+enum StaffingVerificationMethod {
+  wifi
+  location
+  both
+  none
+}
+
+enum StaffingShiftType {
+  DAY
+  NIGHT
+}
+
 model StaffingPunchToken {
   id            String   @id @default(cuid())
   userId        String   @map("user_id")
@@ -171,6 +183,15 @@ model StaffingTimeEvent {
   accuracyMeters Float?   @map("accuracy_meters")
   distanceMeters Float?   @map("distance_meters")
   inRange        Boolean? @map("in_range")
+
+  wifiVerified         Boolean?                 @map("wifi_verified")
+  locationVerified     Boolean?                 @map("location_verified")
+  verificationMethod   StaffingVerificationMethod? @map("verification_method")
+  signedAt             DateTime?                @map("signed_at")
+  signaturePngBase64   String?                  @map("signature_png_base64")
+  shiftType            StaffingShiftType?       @map("shift_type")
+  shiftWindowLabel     String?                  @map("shift_window_label")
+  crossShift           Boolean?                 @map("cross_shift")
 
   ipAddress           String?                  @map("ip_address")
   wifiAllowlistStatus StaffingWifiAllowlistStatus? @map("wifi_allowlist_status")

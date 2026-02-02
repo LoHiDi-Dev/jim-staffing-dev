@@ -4,6 +4,8 @@ dist
 *.local
 .env
 .env.*
+test-results
+playwright-report
 
 # Keep example env files tracked
 !.env.example

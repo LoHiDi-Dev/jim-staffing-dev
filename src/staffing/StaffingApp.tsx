@@ -173,7 +173,7 @@ export function StaffingApp() {
         )}
       />
       <Route
-        path="/my-times"
+        path="/my-timecard"
         element={guard(
           <div className="flex min-h-screen flex-col bg-[#f4f6fb] overflow-x-hidden md:overflow-x-visible">
             {shell}
@@ -184,6 +184,8 @@ export function StaffingApp() {
           </div>
         )}
       />
+
+      <Route path="/my-times" element={<Navigate to="/my-timecard" replace />} />
 
       <Route path="/" element={<Navigate to="/clock-station" replace />} />
       <Route path="*" element={<Navigate to="/clock-station" replace />} />

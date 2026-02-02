@@ -2,7 +2,7 @@ import { CalendarDays, Download, Loader2, Clock, FileText } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ServerUser } from '../../api/auth'
-import { apiMyTimes, apiMyTimesExportCsv, type StaffingEventType } from '../../api/staffing'
+import { apiMyTimes, apiMyTimesExportCsv, apiMyTimesExportPdf, type StaffingEventType } from '../../api/staffing'
 import { AlertBanner } from '../../components/ui/AlertBanner'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -15,6 +15,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
   const [tab, setTab] = useState<'this' | 'last'>('this')
   const [busy, setBusy] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [events, setEvents] = useState<Array<{ type: StaffingEventType; timestamp: string }> | null>(null)
   const loc = useLocation()
@@ -37,8 +38,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
         setEvents(null)
         setErr(msg)
       } finally {
-        if (!mounted) return
-        setBusy(false)
+        if (mounted) setBusy(false)
       }
     }
     void run()
@@ -75,6 +75,27 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
     }
   }
 
+  const downloadPdf = async () => {
+    setErr(null)
+    setDownloadingPdf(true)
+    try {
+      const blob = await apiMyTimesExportPdf({ week: tab })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `JIM_Staffing_Timecard_${user.id}_${tab}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message?: unknown }).message) : 'Download failed.'
+      setErr(msg)
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   return (
     <div className={ui.page.bg}>
       <div className={ui.page.container}>
@@ -96,7 +117,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
             <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
               {[
                 { key: 'clock-station', label: 'Clock Station', to: '/clock-station', icon: Clock },
-                { key: 'my-times', label: 'My Timecard', to: '/my-times', icon: FileText },
+                { key: 'my-times', label: 'My Timecard', to: '/my-timecard', icon: FileText },
               ].map((tab) => {
                 const active = loc.pathname === tab.to
                 const Icon = tab.icon
@@ -136,6 +157,10 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
                 <div className={ui.typography.sectionTitle}>Weekly Summary</div>
                 <div className="flex items-center gap-2">
                   <Badge tone={summary.status === 'OK' ? 'success' : 'warn'}>{summary.status === 'OK' ? 'OK' : 'Incomplete'}</Badge>
+                  <Button variant="outline" type="button" onClick={() => void downloadPdf()} disabled={downloadingPdf || busy || !events}>
+                    {downloadingPdf ? 'Downloading…' : 'Download PDF'}
+                    {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+                  </Button>
                   <Button variant="outline" type="button" onClick={() => void downloadCsv()} disabled={exporting || busy || !events}>
                     {exporting ? 'Exporting…' : 'Export CSV'}
                     {exporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}

@@ -48,14 +48,16 @@ export function evalWifiAllowlist(req: FastifyRequest): WifiAllowlistResult {
   return { ipAddress, status: allow.includes(ipAddress) ? 'PASS' : 'FAIL' }
 }
 
-export function shouldBypassWifiAllowlistForUser(userId: string): boolean {
+export function shouldBypassWifiAllowlistForUser(userId: string, email?: string | null): boolean {
   const env = loadEnv()
   const raw = String(env.STAFFING_WIFI_ALLOWLIST_BYPASS_USER_IDS ?? '')
   const list = raw
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
-  return list.includes(userId)
+  if (list.includes(userId)) return true
+  if (email && list.includes(email)) return true
+  return false
 }
 
 export function newPunchTokenSecret(): { token: string; tokenHash: string } {

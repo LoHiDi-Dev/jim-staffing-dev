@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
+import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { prisma } from '../prisma'
 import type { StaffingAgency, StaffingBlockReason, StaffingEventStatus, StaffingEventType } from '@prisma/client'
 import { evalWifiAllowlist, newPunchTokenSecret, sha256Hex, shouldBypassWifiAllowlistForUser, userAgentHash } from '../lib/staffingPunchSecurity'
@@ -56,9 +57,12 @@ type DerivedState = {
   onLunch: boolean
   lastActionLabel?: string
   lastSyncAt?: string
+  wifiAllowlistStatus?: 'PASS' | 'FAIL' | 'DEV_BYPASS'
+  signatureRequired?: boolean
+  shiftId?: string | null
 }
 
-function deriveState(events: Array<{ type: StaffingEventType; status: StaffingEventStatus; serverTimestamp: Date }>): DerivedState {
+function deriveClockState(events: Array<{ type: StaffingEventType; status: StaffingEventStatus; serverTimestamp: Date }>): DerivedState {
   const ok = events.filter((e) => e.status === 'OK').sort((a, b) => a.serverTimestamp.getTime() - b.serverTimestamp.getTime())
   let clockedIn = false
   let onLunch = false
@@ -105,6 +109,157 @@ function deriveState(events: Array<{ type: StaffingEventType; status: StaffingEv
   return { clockedIn, onLunch, lastActionLabel, lastSyncAt: new Date().toISOString() }
 }
 
+function resolveWeekRange(q: { week?: 'this' | 'last'; dateFrom?: string; dateTo?: string }): { from: Date; to: Date } {
+  const startOfDayUTC = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  const startOfWeekSundayUTC = (d: Date) => {
+    const day = startOfDayUTC(d)
+    const dow = day.getUTCDay() // 0 Sun
+    const sunday = new Date(day)
+    sunday.setUTCDate(day.getUTCDate() - dow)
+    return sunday
+  }
+
+  if (q.dateFrom && q.dateTo) return { from: new Date(q.dateFrom), to: new Date(q.dateTo) }
+
+  const now = new Date()
+  const thisWeekStart = startOfWeekSundayUTC(now)
+  const thisWeekEnd = new Date(thisWeekStart)
+  thisWeekEnd.setUTCDate(thisWeekStart.getUTCDate() + 7)
+
+  if (q.week === 'last') {
+    const lastStart = new Date(thisWeekStart)
+    lastStart.setUTCDate(thisWeekStart.getUTCDate() - 7)
+    const lastEnd = new Date(thisWeekStart)
+    return { from: lastStart, to: lastEnd }
+  }
+
+  return { from: thisWeekStart, to: thisWeekEnd }
+}
+
+const verifiedLabel = (m: string | null | undefined) => {
+  if (!m || m === 'none') return '—'
+  if (m === 'wifi') return 'Wi-Fi'
+  if (m === 'location') return 'Location'
+  if (m === 'both') return 'Wi-Fi + Location'
+  return String(m)
+}
+
+async function buildWeeklyDailyRows(args: { userId: string; siteId?: string | null; from: Date; to: Date }) {
+  const queryFrom = new Date(args.from.getTime() - 12 * 60 * 60_000)
+  const queryTo = new Date(args.to.getTime() + 12 * 60 * 60_000)
+  const raw = await prisma.staffingTimeEvent.findMany({
+    where: {
+      userId: args.userId,
+      status: 'OK',
+      serverTimestamp: { gte: queryFrom, lt: queryTo },
+      ...(args.siteId ? { siteId: args.siteId } : {}),
+    },
+    orderBy: { serverTimestamp: 'asc' },
+    select: {
+      type: true,
+      serverTimestamp: true,
+      verificationMethod: true,
+      signedAt: true,
+      signaturePngBase64: true,
+      shiftType: true,
+    },
+  })
+
+  type Segment = {
+    clockInAt: Date
+    clockOutAt: Date
+    ms: number
+    shiftType: 'DAY' | 'NIGHT'
+    verifiedSeq: string[]
+    signed: boolean
+    signaturePngBase64?: string | null
+  }
+
+  const segments: Segment[] = []
+  let open: { at: Date; events: typeof raw } | null = null
+  for (const e of raw) {
+    if (e.type === 'CLOCK_IN') {
+      open = { at: e.serverTimestamp, events: [e] }
+      continue
+    }
+    if (!open) continue
+    open.events.push(e)
+    if (e.type !== 'CLOCK_OUT') continue
+
+    const clockInAt = open.at
+    const clockOutAt = e.serverTimestamp
+    const ms = Math.max(0, clockOutAt.getTime() - clockInAt.getTime())
+    const shiftType = (e.shiftType as 'DAY' | 'NIGHT' | null) ?? (clockInAt.getUTCHours() >= 6 && clockInAt.getUTCHours() < 18 ? 'DAY' : 'NIGHT')
+    const verifiedSeq = open.events
+      .map((x) => verifiedLabel(x.verificationMethod as string | null | undefined))
+      .filter((v) => v !== '—')
+      .filter((v, idx, arr) => (idx === 0 ? true : v !== arr[idx - 1]))
+    const signed = Boolean(e.signedAt || e.signaturePngBase64)
+    segments.push({
+      clockInAt,
+      clockOutAt,
+      ms,
+      shiftType,
+      verifiedSeq,
+      signed,
+      signaturePngBase64: e.signaturePngBase64,
+    })
+    open = null
+  }
+
+  const dayKeyUTC = (d: Date) => d.toISOString().slice(0, 10)
+  const addDays = (d: Date, days: number) => new Date(d.getTime() + days * 24 * 60 * 60_000)
+  const days = Array.from({ length: 7 }).map((_, i) => addDays(args.from, i))
+  const dayKeys = days.map((d) => dayKeyUTC(d))
+
+  const rows = dayKeys.map((key, idx) => {
+    const segs = segments.filter((s) => dayKeyUTC(s.clockInAt) === key)
+    let firstIn: Date | null = null
+    let lastOut: Date | null = null
+    let totalMs = 0
+    let hasSignature = false
+    let signaturePngBase64: string | null = null
+    const methodSeq: string[] = []
+    let shift: 'DAY' | 'NIGHT' | '—' = '—'
+    for (const s of segs) {
+      if (!firstIn || s.clockInAt.getTime() < firstIn.getTime()) firstIn = s.clockInAt
+      if (!lastOut || s.clockOutAt.getTime() > lastOut.getTime()) lastOut = s.clockOutAt
+      totalMs += s.ms
+      if (shift === '—') shift = s.shiftType
+      if (s.signed) {
+        hasSignature = true
+        signaturePngBase64 ||= s.signaturePngBase64 ?? null
+      }
+      for (const m of s.verifiedSeq) methodSeq.push(m)
+    }
+    const hasWork = totalMs > 0
+    const lunchMs = hasWork ? 30 * 60_000 : 0
+    const hours = Math.max(0, totalMs - lunchMs) / 3_600_000
+    const normalizedMethods = methodSeq.filter((v, i2, arr) => (i2 === 0 ? true : v !== arr[i2 - 1]))
+    const distinct = Array.from(new Set(normalizedMethods))
+    const verifiedVia = !hasWork
+      ? '—'
+      : distinct.length <= 1
+        ? normalizedMethods[0] ?? '—'
+        : `${normalizedMethods[0]} → ${normalizedMethods[normalizedMethods.length - 1]}`
+    return {
+      dayIndex: idx,
+      date: key,
+      shift: hasWork ? shift : '—',
+      timeIn: firstIn ? firstIn.toISOString() : null,
+      timeOut: lastOut ? lastOut.toISOString() : null,
+      lunchMinutes: hasWork ? 30 : 0,
+      hours,
+      verifiedVia,
+      signed: hasWork ? hasSignature : null,
+      signaturePngBase64,
+    }
+  })
+
+  const totalHours = rows.reduce((sum, r) => sum + r.hours, 0)
+  return { rows, totals: { hours: totalHours } }
+}
+
 export const staffingRoutes: FastifyPluginAsync = async (app) => {
   app.get('/staffing/me', async (req) => {
     const ctx = await app.requireSiteRole(req)
@@ -128,20 +283,31 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/staffing/me/state', async (req) => {
     const ctx = await app.requireSiteRole(req)
+    const wifiRaw = evalWifiAllowlist(req)
+    const wifi =
+      wifiRaw.status === 'FAIL' && shouldBypassWifiAllowlistForUser(ctx.userId, ctx.email) ? { ...wifiRaw, status: 'DEV_BYPASS' as const } : wifiRaw
     const events = await prisma.staffingTimeEvent.findMany({
       where: { userId: ctx.userId },
       orderBy: { serverTimestamp: 'asc' },
       take: 500,
-      select: { type: true, status: true, serverTimestamp: true },
+      select: { id: true, type: true, status: true, serverTimestamp: true, signedAt: true, signaturePngBase64: true },
     })
-    return deriveState(events)
+    const base = deriveClockState(events)
+    const ok = events.filter((e) => e.status === 'OK').sort((a, b) => a.serverTimestamp.getTime() - b.serverTimestamp.getTime())
+    const last = ok[ok.length - 1]
+    const signatureRequired = Boolean(last && last.type === 'CLOCK_OUT' && !last.signedAt && !last.signaturePngBase64)
+    return {
+      ...base,
+      wifiAllowlistStatus: wifi.status,
+      signatureRequired,
+      shiftId: signatureRequired ? last!.id : null,
+    }
   })
 
   /**
    * Issues a short-lived punch token that must be provided to all punch endpoints.
    * Requires:
    * - contractor eligibility (LTC/STC)
-   * - request originates from warehouse Wi‑Fi allowlist (or DEV_BYPASS in local dev)
    * - deviceId header present
    */
   app.post('/staffing/punch-token', async (req) => {
@@ -158,10 +324,9 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
 
     const wifiRaw = evalWifiAllowlist(req)
     const wifi =
-      wifiRaw.status === 'FAIL' && shouldBypassWifiAllowlistForUser(ctx.userId) ? { ...wifiRaw, status: 'DEV_BYPASS' as const } : wifiRaw
-    if (wifi.status === 'FAIL') {
-      throw app.httpErrors.forbidden('Clocking is only available on warehouse Wi-Fi.')
-    }
+      wifiRaw.status === 'FAIL' && shouldBypassWifiAllowlistForUser(ctx.userId, ctx.email) ? { ...wifiRaw, status: 'DEV_BYPASS' as const } : wifiRaw
+    // NOTE: punch tokens are intentionally allowed even when Wi‑Fi allowlist fails.
+    // Enforcement is performed per punch using (Wi‑Fi OR verified location), so a contractor can clock using location-only verification.
 
     // Revoke any active tokens for this user+device (best-effort).
     await prisma.staffingPunchToken.updateMany({
@@ -209,7 +374,7 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
 
     const wifiRaw = evalWifiAllowlist(req)
     const wifi =
-      wifiRaw.status === 'FAIL' && shouldBypassWifiAllowlistForUser(ctx.userId) ? { ...wifiRaw, status: 'DEV_BYPASS' as const } : wifiRaw
+      wifiRaw.status === 'FAIL' && shouldBypassWifiAllowlistForUser(ctx.userId, ctx.email) ? { ...wifiRaw, status: 'DEV_BYPASS' as const } : wifiRaw
     const ipAddress = wifi.ipAddress
 
     const deviceId = String(req.headers[DEVICE_ID_HEADER] ?? '').trim()
@@ -223,7 +388,7 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
       take: 500,
       select: { type: true, status: true, serverTimestamp: true },
     })
-    const state = deriveState(events)
+    const state = deriveClockState(events)
 
     const requested = body.type as StaffingEventType
     let invalidState = false
@@ -236,6 +401,7 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
     const distanceMeters =
       geo ? haversineMeters({ lat: geo.lat, lng: geo.lng }, { lat: STAFFING_SITE.lat, lng: STAFFING_SITE.lng }) : null
     const inRange = distanceMeters != null ? distanceMeters <= STAFFING_SITE.radiusMeters : false
+    const accuracyOk = geo?.accuracyMeters != null ? geo.accuracyMeters <= 200 : geo ? true : false
 
     const serverNow = new Date()
     const clientReported = body.clientReportedTimestamp ? new Date(body.clientReportedTimestamp) : null
@@ -256,6 +422,16 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
       accuracyMeters: geo?.accuracyMeters ?? null,
       distanceMeters: distanceMeters ?? null,
       inRange,
+      wifiVerified: wifi.status === 'PASS' || wifi.status === 'DEV_BYPASS',
+      locationVerified: Boolean(geo && inRange && accuracyOk),
+      verificationMethod:
+        (wifi.status === 'PASS' || wifi.status === 'DEV_BYPASS') && geo && inRange && accuracyOk
+          ? 'both'
+          : wifi.status === 'PASS' || wifi.status === 'DEV_BYPASS'
+            ? 'wifi'
+            : geo && inRange && accuracyOk
+              ? 'location'
+              : 'none',
       userAgent,
       notes: body.notes ?? null,
       ipAddress: ipAddress,
@@ -264,12 +440,26 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
       idempotencyKey: idempotencyKey || null,
     } as const
 
-    // MUST #1 — Warehouse Wi‑Fi allowlist
-    if (wifi.status === 'FAIL') {
+    // MUST #1 — Verification required: (warehouse Wi‑Fi allowlist) OR (location check).
+    const wifiOk = wifi.status === 'PASS' || wifi.status === 'DEV_BYPASS'
+    const locOk = Boolean(geo && inRange && accuracyOk)
+    if (!wifiOk && !locOk) {
+      let reason: StaffingBlockReason = 'PERMISSION_DENIED'
+      let msg = 'Clock in/out requires verified warehouse Wi-Fi or a verified location check.'
+      if (!geo) {
+        reason = 'LOCATION_UNAVAILABLE'
+        msg = 'Clock in/out requires a location check (tap Verify location) or verified warehouse Wi-Fi.'
+      } else if (!accuracyOk) {
+        reason = 'ACCURACY_LOW'
+        msg = 'Clock in/out requires an accurate location fix. Try Verify location again.'
+      } else if (!inRange) {
+        reason = 'OUT_OF_RANGE'
+        msg = 'Clock in/out requires being within range of the site geofence or verified warehouse Wi-Fi.'
+      }
       await prisma.staffingTimeEvent.create({
-        data: { ...baseEvent, status: 'BLOCKED', reason: 'NOT_ON_WAREHOUSE_WIFI' },
+        data: { ...baseEvent, status: 'BLOCKED', reason },
       })
-      throw app.httpErrors.forbidden('Clocking is only available on warehouse Wi-Fi.')
+      throw app.httpErrors.forbidden(msg)
     }
 
     // Device binding required for punch tokens
@@ -346,9 +536,15 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
       throw app.httpErrors.forbidden('Invalid clock state for this action.')
     }
 
-    await prisma.staffingTimeEvent.create({
+    const created = await prisma.staffingTimeEvent.create({
       data: { ...baseEvent, status: 'OK', reason: null, punchTokenId: tokenRow.id },
+      select: { id: true },
     })
+
+    if (requested === 'CLOCK_OUT') {
+      // MVP: signature is required after every clock-out (submit via /attendance/:shiftId/signature).
+      return { ok: true, shiftId: created.id, signatureRequired: true }
+    }
 
     return { ok: true }
   })
@@ -356,35 +552,7 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
   app.get('/staffing/my-times', async (req) => {
     const ctx = await app.requireSiteRole(req)
     const q = WeekQuery.parse(req.query)
-
-    const now = new Date()
-    const startOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
-
-    let from: Date
-    let to: Date
-    if (q.dateFrom && q.dateTo) {
-      from = new Date(q.dateFrom)
-      to = new Date(q.dateTo)
-    } else {
-      const day = startOfDay(now)
-      const dow = day.getUTCDay() // 0 Sun
-      const mondayOffset = (dow + 6) % 7
-      const monday = new Date(day)
-      monday.setUTCDate(day.getUTCDate() - mondayOffset)
-      const thisWeekStart = monday
-      const thisWeekEnd = new Date(monday)
-      thisWeekEnd.setUTCDate(monday.getUTCDate() + 7)
-      if (q.week === 'last') {
-        const lastStart = new Date(thisWeekStart)
-        lastStart.setUTCDate(thisWeekStart.getUTCDate() - 7)
-        const lastEnd = new Date(thisWeekStart)
-        from = lastStart
-        to = lastEnd
-      } else {
-        from = thisWeekStart
-        to = thisWeekEnd
-      }
-    }
+    const { from, to } = resolveWeekRange({ week: q.week, dateFrom: q.dateFrom, dateTo: q.dateTo })
 
     const events = await prisma.staffingTimeEvent.findMany({
       where: { userId: ctx.userId, status: 'OK', serverTimestamp: { gte: from, lt: to } },
@@ -402,8 +570,7 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
     const ctx = await app.requireSiteRole(req)
     const q = WeekQuery.parse(req.query)
 
-    const from = q.dateFrom ? new Date(q.dateFrom) : new Date(Date.now() - 7 * 86400000)
-    const to = q.dateTo ? new Date(q.dateTo) : new Date()
+    const { from, to } = resolveWeekRange({ week: q.week, dateFrom: q.dateFrom, dateTo: q.dateTo })
 
     const events = await prisma.staffingTimeEvent.findMany({
       where: { userId: ctx.userId, serverTimestamp: { gte: from, lt: to } },
@@ -441,6 +608,107 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
     reply.header('Content-Type', 'text/csv')
     reply.header('Content-Disposition', `attachment; filename="JIM_Staffing_MyTimes_${ctx.userId}.csv"`)
     return reply.send(csv)
+  })
+
+  app.get('/staffing/my-times/export.pdf', async (req, reply) => {
+    const ctx = await app.requireSiteRole(req)
+    const q = WeekQuery.parse(req.query)
+    const { from, to } = resolveWeekRange({ week: q.week, dateFrom: q.dateFrom, dateTo: q.dateTo })
+
+    const profile = await prisma.staffingContractorProfile.findUnique({ where: { userId: ctx.userId } })
+    if (!profile) throw app.httpErrors.forbidden('Not authorized for JIM Staffing.')
+
+    const { rows, totals } = await buildWeeklyDailyRows({ userId: ctx.userId, siteId: ctx.siteId, from, to })
+
+    const pdf = await PDFDocument.create()
+    const page = pdf.addPage([612, 792])
+    const font = await pdf.embedFont(StandardFonts.Helvetica)
+    const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold)
+
+    const sanitize = (t: string) =>
+      String(t ?? '')
+        .replace(/→/g, '->')
+        .replace(/\u2014/g, '-') // em dash
+        .replace(/\u2013/g, '-') // en dash
+
+    const draw = (t: string, x: number, y: number, bold = false, size = 10) => {
+      page.drawText(sanitize(t), { x, y, size, font: bold ? fontBold : font })
+    }
+
+    draw('JIM Staffing® — Weekly Timecard', 36, 760, true, 14)
+    draw(`User: ${ctx.userId}`, 36, 742, false, 10)
+    draw(`Site: ${ctx.siteId}`, 36, 732, false, 9)
+    draw(`Range: ${from.toISOString()} → ${to.toISOString()}`, 36, 718, false, 9)
+
+    const startY = 690
+    const rowH = 20
+    const cols = [
+      { label: 'Date', x: 36 },
+      { label: 'Shift', x: 120 },
+      { label: 'In', x: 175 },
+      { label: 'Out', x: 285 },
+      { label: 'Lunch', x: 395 },
+      { label: 'Hours', x: 445 },
+      { label: 'Verified', x: 495 },
+      { label: 'Signed', x: 560 },
+    ]
+    cols.forEach((c) => draw(c.label, c.x, startY, true, 9))
+    let y = startY - 12
+    for (const r of rows) {
+      draw(r.date, cols[0].x, y, false, 8)
+      draw(String(r.shift), cols[1].x, y, false, 8)
+      draw(r.timeIn ? r.timeIn.slice(11, 16) : '—', cols[2].x, y, false, 8)
+      draw(r.timeOut ? r.timeOut.slice(11, 16) : '—', cols[3].x, y, false, 8)
+      draw(r.lunchMinutes ? `${r.lunchMinutes}m` : '—', cols[4].x, y, false, 8)
+      draw(r.hours ? r.hours.toFixed(2) : '0.00', cols[5].x, y, false, 8)
+      draw(r.verifiedVia, cols[6].x, y, false, 8)
+      draw(r.signed === null ? '—' : r.signed ? 'Y' : 'N', cols[7].x, y, false, 8)
+
+      // Best-effort signature thumbnail when present (kept small to maintain one-page layout).
+      if (r.signaturePngBase64 && r.signaturePngBase64.startsWith('data:image/png;base64,')) {
+        try {
+          const b64 = r.signaturePngBase64.slice('data:image/png;base64,'.length)
+          const bytes = Buffer.from(b64, 'base64')
+          const img = await pdf.embedPng(bytes)
+          page.drawImage(img, { x: 510, y: y - 2, width: 40, height: 12 })
+        } catch {
+          // ignore image decode errors; the Signed column still indicates status
+        }
+      }
+
+      y -= rowH
+    }
+    draw(`Total hours: ${totals.hours.toFixed(2)}`, 36, y - 8, true, 11)
+
+    const bytes = Buffer.from(await pdf.save())
+    reply.header('Content-Type', 'application/pdf')
+    reply.header('Content-Disposition', `attachment; filename="JIM_Staffing_Timecard_${ctx.userId}_${from.toISOString().slice(0, 10)}.pdf"`)
+    return reply.send(bytes)
+  })
+
+  const SignatureBody = z.object({
+    signaturePngBase64: z.string().min(1),
+  })
+
+  app.post('/attendance/:shiftId/signature', async (req) => {
+    const ctx = await app.requireSiteRole(req)
+    const shiftId = String((req.params as { shiftId?: string }).shiftId ?? '').trim()
+    if (!shiftId) throw app.httpErrors.badRequest('Missing shift id.')
+    const body = SignatureBody.parse(req.body)
+    const sig = body.signaturePngBase64
+    if (!sig.startsWith('data:image/png;base64,')) {
+      throw app.httpErrors.badRequest('Signature must be a PNG data URL (data:image/png;base64,...)')
+    }
+    if (sig.length > 300_000) {
+      throw app.httpErrors.badRequest('Signature too large.')
+    }
+
+    const updated = await prisma.staffingTimeEvent.updateMany({
+      where: { id: shiftId, userId: ctx.userId, type: 'CLOCK_OUT', status: 'OK' },
+      data: { signedAt: new Date(), signaturePngBase64: sig },
+    })
+    if (!updated.count) throw app.httpErrors.notFound('Shift not found.')
+    return { ok: true }
   })
 }
 
