@@ -1,5 +1,5 @@
 import { AlertCircle, Eye, EyeOff, X } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { API_BASE_URL } from '../../api/config'
 import { apiLogin, apiLoginByName, type ServerUser } from '../../api/auth'
@@ -38,6 +38,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [busy, setBusy] = useState(false)
+  const pinRefs = useRef<Array<HTMLInputElement | null>>([])
 
   const apiNotConfigured = !API_BASE_URL
   const wasLocked = new URLSearchParams(loc.search).get('locked') === '1'
@@ -387,26 +388,31 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                             className="login-pin h-10 w-10 px-0 text-center text-lg font-semibold bg-slate-50"
                             aria-invalid={Boolean((showErr('returningPin') && returningPin.length !== 4) || fieldErrors.returningPin)}
                             value={digit}
+                            ref={(el) => {
+                              pinRefs.current[idx] = el
+                            }}
                             onChange={(e) => {
                               const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 1)
-                              const next = [...returningPinDigits]
-                              next[idx] = val
-                              setReturningPinDigits(next)
-                              setFormError('')
-                              setFieldErrors((p) => ({ ...p, returningPin: '' }))
-                              if (val && idx < returningPinDigits.length - 1) {
-                                const nextInput = document.getElementById(`pin-${idx + 1}`)
-                                ;(nextInput as HTMLInputElement | null)?.focus()
-                              }
+                              setReturningPinDigits((prev) => {
+                                if (prev[idx] === val) return prev
+                                const next = [...prev]
+                                next[idx] = val
+                                return next
+                              })
+                              if (formError) setFormError('')
+                              if (fieldErrors.returningPin) setFieldErrors((p) => (p.returningPin ? { ...p, returningPin: '' } : p))
+                              if (val && idx < returningPinDigits.length - 1) pinRefs.current[idx + 1]?.focus()
                             }}
                             onBlur={() => markTouched('returningPin')}
                             onKeyDown={(e) => {
                               if (e.key === 'Backspace' && !returningPinDigits[idx] && idx > 0) {
-                                const prevInput = document.getElementById(`pin-${idx - 1}`) as HTMLInputElement | null
-                                prevInput?.focus()
-                                const next = [...returningPinDigits]
-                                next[idx - 1] = ''
-                                setReturningPinDigits(next)
+                                pinRefs.current[idx - 1]?.focus()
+                                setReturningPinDigits((prev) => {
+                                  if (!prev[idx - 1]) return prev
+                                  const next = [...prev]
+                                  next[idx - 1] = ''
+                                  return next
+                                })
                               }
                             }}
                             onPaste={(e) => {
@@ -415,11 +421,9 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                               const next = ['', '', '', '']
                               for (let i = 0; i < pasted.length; i += 1) next[i] = pasted[i]!
                               setReturningPinDigits(next)
-                              setFormError('')
-                              setFieldErrors((p) => ({ ...p, returningPin: '' }))
-                              const targetIdx = Math.min(pasted.length, 3)
-                              const target = document.getElementById(`pin-${targetIdx}`) as HTMLInputElement | null
-                              target?.focus()
+                              if (formError) setFormError('')
+                              if (fieldErrors.returningPin) setFieldErrors((p) => (p.returningPin ? { ...p, returningPin: '' } : p))
+                              pinRefs.current[Math.min(pasted.length - 1, 3)]?.focus()
                               e.preventDefault()
                             }}
                             aria-label={`PIN digit ${idx + 1}`}
