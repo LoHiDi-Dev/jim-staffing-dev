@@ -617,6 +617,7 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
 
     const profile = await prisma.staffingContractorProfile.findUnique({ where: { userId: ctx.userId } })
     if (!profile) throw app.httpErrors.forbidden('Not authorized for JIM Staffing.')
+    const user = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true, email: true } })
 
     const { rows, totals } = await buildWeeklyDailyRows({ userId: ctx.userId, siteId: ctx.siteId, from, to })
 
@@ -632,7 +633,29 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
         .replace(/\u2014/g, '-') // em dash
         .replace(/\u2013/g, '-') // en dash
 
-    const fmtDate = (isoYmd: string) => isoYmd
+    const canonicalUserId = (() => {
+      const email = String(user?.email ?? ctx.email ?? '').trim().toLowerCase()
+      const local = email.includes('@') ? email.split('@')[0]! : ''
+      if (!local) return ctx.userId
+      return local.replace(/[^a-z0-9-]/g, '-').toUpperCase()
+    })()
+
+    const fmtDateSlash = (isoYmd: string): string => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoYmd)
+      if (!m) return isoYmd
+      return `${m[2]}/${m[3]}/${m[1]}`
+    }
+
+    const weekdayShortFromYmd = (isoYmd: string): string => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoYmd)
+      if (!m) return '—'
+      const y = Number(m[1])
+      const mo = Number(m[2]) - 1
+      const d = Number(m[3])
+      const dt = new Date(Date.UTC(y, mo, d, 12, 0, 0))
+      return dt.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })
+    }
+
     const fmtTime = (iso: string | null) => {
       if (!iso) return '—'
       try {
@@ -645,9 +668,16 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
         return iso.slice(11, 16)
       }
     }
-    const rangeFrom = from.toISOString().slice(0, 10)
-    const rangeToInclusive = new Date(to.getTime() - 1).toISOString().slice(0, 10)
-    const rangeLabel = `${rangeFrom} to ${rangeToInclusive}`
+    const rangeFromYmd = from.toISOString().slice(0, 10)
+    const rangeToInclusiveYmd = new Date(to.getTime() - 1).toISOString().slice(0, 10)
+    const weekLabel = `${fmtDateSlash(rangeFromYmd)} – ${fmtDateSlash(rangeToInclusiveYmd)}`
+
+    const generatedAt = (() => {
+      const now = new Date()
+      const date = now.toLocaleDateString('en-US', { timeZone: tz, month: '2-digit', day: '2-digit', year: 'numeric' })
+      const time = now.toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })
+      return `${date} ${time} CT`
+    })()
 
     const drawText = (t: string, x: number, y: number, opts?: { bold?: boolean; size?: number; color?: ReturnType<typeof rgb> }) => {
       const size = opts?.size ?? 10
@@ -661,114 +691,203 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
       })
     }
 
-    // Header bar
+    // Palette (close to app)
     const brand = rgb(30 / 255, 58 / 255, 138 / 255) // --brand-primary
     const slate900 = rgb(15 / 255, 23 / 255, 42 / 255)
+    const slate700 = rgb(51 / 255, 65 / 255, 85 / 255)
     const slate600 = rgb(71 / 255, 85 / 255, 105 / 255)
     const slate200 = rgb(226 / 255, 232 / 255, 240 / 255)
-    const slate50 = rgb(248 / 255, 250 / 255, 252 / 255)
+    const slate100 = rgb(241 / 255, 245 / 255, 249 / 255)
+    const white = rgb(1, 1, 1)
 
-    page.drawRectangle({ x: 0, y: 740, width: 612, height: 52, color: brand })
-    drawText('JIM Staffing', 36, 770, { bold: true, size: 18, color: rgb(1, 1, 1) })
-    drawText('Weekly Timecard', 36, 748, { size: 11, color: rgb(1, 1, 1) })
+    // Header (matches the PDF you provided)
+    drawText('JIM Staffing®', 36, 760, { bold: true, size: 16, color: brand })
+    drawText('Workforce Attendance', 36, 742, { size: 11, color: slate600 })
+    drawText('Weekly Timecard', 36, 722, { bold: true, size: 14, color: slate900 })
+    drawText(`Site: ${ctx.siteId ?? '—'}`, 36, 704, { size: 10, color: slate700 })
+    drawText(`Week: ${weekLabel}`, 36, 690, { size: 10, color: slate700 })
+    drawText(`Generated: ${generatedAt}`, 36, 676, { size: 10, color: slate600 })
 
-    // Meta
-    const metaY = 716
-    drawText(profile.userId ? `User ID: ${profile.userId}` : `User ID: ${ctx.userId}`, 36, metaY, { size: 10, color: slate900 })
-    drawText(`Site: ${ctx.siteId ?? '—'}`, 36, metaY - 14, { size: 10, color: slate600 })
-    drawText(`Week: ${rangeLabel}`, 36, metaY - 28, { size: 10, color: slate600 })
+    // Summary stats (computed like the old PDF)
+    const daysWorked = rows.filter((r) => (r.hours ?? 0) > 0).length
+    const dayShifts = rows.filter((r) => (r.hours ?? 0) > 0 && r.shift === 'DAY').length
+    const nightShifts = rows.filter((r) => (r.hours ?? 0) > 0 && r.shift === 'NIGHT').length
+    const unsignedDays = rows.filter((r) => (r.hours ?? 0) > 0 && r.signed === false).length
 
-    // Summary pill (top-right)
-    const pillW = 150
-    const pillH = 28
-    const pillX = 612 - 36 - pillW
-    const pillY = metaY - 8
-    page.drawRectangle({ x: pillX, y: pillY, width: pillW, height: pillH, color: slate50, borderColor: slate200, borderWidth: 1 })
-    drawText('Total hours', pillX + 12, pillY + 10, { size: 9, color: slate600 })
-    drawText(totals.hours.toFixed(2), pillX + 92, pillY + 7, { bold: true, size: 12, color: slate900 })
+    // Info grid + totals (2 columns x 4 rows)
+    const gridX = 36
+    const gridYTop = 646
+    const gridW = 612 - 72
+    const colW = (gridW - 12) / 2
+    const rowH = 34
+
+    const infoRows: Array<Array<{ label: string; value: string }>> = [
+      [
+        { label: 'Employee Name', value: user?.name ?? '—' },
+        { label: 'User ID', value: canonicalUserId },
+      ],
+      [
+        { label: 'Role', value: String(ctx.role ?? '—') },
+        { label: 'Employment Type', value: String(profile.employmentType ?? '—') },
+      ],
+      [
+        { label: 'Site', value: String(ctx.siteId ?? '—') },
+        { label: 'Date range', value: weekLabel },
+      ],
+      [
+        { label: 'Total Hours', value: totals.hours.toFixed(2) },
+        { label: 'Days Worked', value: String(daysWorked) },
+      ],
+      [
+        { label: 'Day Shifts', value: String(dayShifts) },
+        { label: 'Night Shifts', value: String(nightShifts) },
+      ],
+      [
+        { label: 'Unsigned Days', value: String(unsignedDays) },
+        { label: '', value: '' },
+      ],
+    ]
+
+    // Draw grid blocks (right column skips the final empty cell)
+    let gy = gridYTop
+    for (let r = 0; r < infoRows.length; r++) {
+      const left = infoRows[r]![0]!
+      const right = infoRows[r]![1]!
+      // left cell
+      page.drawRectangle({ x: gridX, y: gy - rowH, width: colW, height: rowH, color: white, borderColor: slate200, borderWidth: 1 })
+      drawText(left.label, gridX + 10, gy - 14, { size: 9, color: slate600 })
+      drawText(left.value, gridX + 10, gy - 28, { bold: true, size: 11, color: slate900 })
+      // right cell
+      if (right.label) {
+        page.drawRectangle({ x: gridX + colW + 12, y: gy - rowH, width: colW, height: rowH, color: white, borderColor: slate200, borderWidth: 1 })
+        drawText(right.label, gridX + colW + 22, gy - 14, { size: 9, color: slate600 })
+        drawText(right.value, gridX + colW + 22, gy - 28, { bold: true, size: 11, color: slate900 })
+      }
+      gy -= rowH
+    }
+
+    // Attendance section title + note
+    const attY = gy - 22
+    drawText('Weekly Attendance', 36, attY, { bold: true, size: 12, color: slate900 })
+    drawText('Note: Lunch: 30 min included per shift', 36, attY - 16, { size: 10, color: slate600 })
 
     // Table
     const tableX = 36
     const tableW = 612 - 72
     const headerH = 22
-    const rowH = 24
-    const startY = 660
+    const dataRowH = 22
+    const startY = attY - 46
 
+    type Align = 'left' | 'right' | 'center'
     const colDefs = [
-      { key: 'date', label: 'Date', w: 88, align: 'left' as const },
-      { key: 'shift', label: 'Shift', w: 54, align: 'left' as const },
-      { key: 'in', label: 'In', w: 78, align: 'left' as const },
-      { key: 'out', label: 'Out', w: 78, align: 'left' as const },
-      { key: 'lunch', label: 'Lunch', w: 54, align: 'left' as const },
-      { key: 'hours', label: 'Hours', w: 56, align: 'right' as const },
-      { key: 'verified', label: 'Verified', w: 132, align: 'left' as const },
-      { key: 'signed', label: 'Signed', w: 44, align: 'center' as const },
+      { key: 'day', label: 'Day', w: 34, align: 'left' as Align },
+      { key: 'date', label: 'Date', w: 74, align: 'left' as Align },
+      { key: 'shift', label: 'Shift', w: 48, align: 'left' as Align },
+      { key: 'in', label: 'Time In', w: 76, align: 'left' as Align },
+      { key: 'out', label: 'Time Out', w: 76, align: 'left' as Align },
+      { key: 'lunch', label: 'Lunch', w: 46, align: 'left' as Align },
+      { key: 'hours', label: 'Hours', w: 44, align: 'right' as Align },
+      { key: 'verified', label: 'Verified via', w: 86, align: 'left' as Align },
+      { key: 'signature', label: 'Signature', w: 56, align: 'left' as Align },
     ]
     const totalW = colDefs.reduce((s, c) => s + c.w, 0)
-    // Scale to fit exactly table width (keeps proportions)
     const scale = tableW / totalW
     const cols = colDefs.map((c) => ({ ...c, w: c.w * scale }))
 
-    // Header background
-    page.drawRectangle({ x: tableX, y: startY, width: tableW, height: headerH, color: slate50, borderColor: slate200, borderWidth: 1 })
+    // Header
+    page.drawRectangle({ x: tableX, y: startY, width: tableW, height: headerH, color: slate100, borderColor: slate200, borderWidth: 1 })
     let cx = tableX
     for (const c of cols) {
-      drawText(c.label, cx + 8, startY + 7, { bold: true, size: 9, color: slate600 })
+      drawText(c.label, cx + 6, startY + 7, { bold: true, size: 9, color: slate700 })
       cx += c.w
     }
 
-    // Rows
-    let y = startY - rowH
+    const drawCell = (txt: string, x: number, y: number, w: number, align: Align = 'left') => {
+      const t = safe(txt)
+      if (align === 'right') {
+        drawText(t, x + w - 6 - t.length * 4.6, y + 7, { size: 9, color: slate900 })
+      } else if (align === 'center') {
+        drawText(t, x + w / 2 - t.length * 2.3, y + 7, { size: 9, color: slate900 })
+      } else {
+        drawText(t, x + 6, y + 7, { size: 9, color: slate900 })
+      }
+    }
+
+    // Rows (7 days)
+    let y = startY - dataRowH
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]!
-      const fill = i % 2 === 0 ? rgb(1, 1, 1) : rgb(250 / 255, 252 / 255, 255 / 255)
-      page.drawRectangle({ x: tableX, y, width: tableW, height: rowH, color: fill, borderColor: slate200, borderWidth: 1 })
+      const fill = i % 2 === 0 ? white : rgb(250 / 255, 252 / 255, 255 / 255)
+      page.drawRectangle({ x: tableX, y, width: tableW, height: dataRowH, color: fill, borderColor: slate200, borderWidth: 1 })
 
-      const values = {
-        date: fmtDate(r.date),
-        shift: String(r.shift ?? '—'),
-        in: fmtTime(r.timeIn),
-        out: fmtTime(r.timeOut),
-        lunch: r.lunchMinutes ? `${r.lunchMinutes}m` : '—',
-        hours: (r.hours ?? 0).toFixed(2),
-        verified: r.verifiedVia || '—',
-        signed: r.signed === null ? '—' : r.signed ? 'Yes' : 'No',
-      } as const
+      const hasWork = (r.hours ?? 0) > 0
+      const day = weekdayShortFromYmd(r.date)
+      const date = fmtDateSlash(r.date)
+      const shift = hasWork ? String(r.shift) : '—'
+      const timeIn = hasWork ? fmtTime(r.timeIn) : '—'
+      const timeOut = hasWork ? fmtTime(r.timeOut) : '—'
+      const lunch = hasWork ? `${r.lunchMinutes ?? 30}m` : '—'
+      const hours = (r.hours ?? 0).toFixed(2)
+      const verifiedVia = hasWork ? (r.verifiedVia || '—') : '—'
+      const signatureText = !hasWork ? '—' : r.signed ? '' : '—'
+
+      const values: Record<string, string> = {
+        day,
+        date,
+        shift,
+        in: timeIn,
+        out: timeOut,
+        lunch,
+        hours,
+        verified: verifiedVia,
+        signature: signatureText,
+      }
 
       let x = tableX
       for (const c of cols) {
-        const txt = safe(String((values as Record<string, string>)[c.key]))
-        if (c.align === 'right') {
-          // crude right-align: shift by approx char width (best-effort)
-          drawText(txt, x + c.w - 8 - txt.length * 4.6, y + 7, { size: 9, color: slate900 })
-        } else {
-          drawText(txt, x + 8, y + 7, { size: 9, color: slate900 })
-        }
+        const val = values[c.key] ?? '—'
+        drawCell(val, x, y, c.w, c.align)
         x += c.w
       }
 
-      // Signature preview (optional) next to "Signed"
-      if (r.signaturePngBase64 && r.signaturePngBase64.startsWith('data:image/png;base64,')) {
+      // Signature thumbnail when present
+      if (hasWork && r.signaturePngBase64 && r.signaturePngBase64.startsWith('data:image/png;base64,')) {
         try {
           const b64 = r.signaturePngBase64.slice('data:image/png;base64,'.length)
           const bytes = Buffer.from(b64, 'base64')
           const img = await pdf.embedPng(bytes)
-          page.drawImage(img, { x: tableX + tableW - 74, y: y + 6, width: 60, height: 12 })
+          // last column area
+          const sigCol = cols[cols.length - 1]!
+          const sigX = tableX + tableW - sigCol.w + 6
+          page.drawImage(img, { x: sigX, y: y + 6, width: sigCol.w - 12, height: 10 })
         } catch {
-          // ignore image decode errors
+          // ignore
         }
       }
 
-      y -= rowH
+      y -= dataRowH
     }
 
-    // Footer note
-    drawText('All times shown in local site time.', 36, 66, { size: 9, color: slate600 })
-    drawText('© 2026 JIM Staffing', 36, 52, { size: 9, color: slate600 })
+    // Totals row
+    page.drawRectangle({ x: tableX, y, width: tableW, height: dataRowH, color: slate100, borderColor: slate200, borderWidth: 1 })
+    drawText('Weekly Total', tableX + 6, y + 7, { bold: true, size: 9, color: slate700 })
+    // hours column (7th col, 0-indexed)
+    const hoursColIndex = cols.findIndex((c) => c.key === 'hours')
+    if (hoursColIndex >= 0) {
+      const leftW = cols.slice(0, hoursColIndex).reduce((s, c) => s + c.w, 0)
+      const hw = cols[hoursColIndex]!.w
+      drawCell(totals.hours.toFixed(2), tableX + leftW, y, hw, 'right')
+    }
+
+    // Footer
+    drawText('This document is generated by JIM Staffing®. Edits are restricted.', 36, 60, { size: 9, color: slate600 })
 
     const bytes = Buffer.from(await pdf.save())
     reply.header('Content-Type', 'application/pdf')
-    reply.header('Content-Disposition', `attachment; filename="JIM_Staffing_Timecard_${ctx.userId}_${from.toISOString().slice(0, 10)}.pdf"`)
+    reply.header(
+      'Content-Disposition',
+      `attachment; filename="JIM_Staffing_Timecard_${canonicalUserId}_${rangeFromYmd}_to_${rangeToInclusiveYmd}.pdf"`,
+    )
     return reply.send(bytes)
   })
 
