@@ -10,3 +10,6 @@ playwright-report
 # Keep example env files tracked
 !.env.example
 
+# Local dev Postgres data (Postgres.app / manual pg_ctl)
+.pgdata/
+
