@@ -292,10 +292,12 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                     <div className="text-base sm:text-sm font-extrabold text-slate-900">DTX Wi‑Fi</div>
                     <Badge tone={wifiOk ? 'success' : 'warn'}>{wifiOk ? 'Connected' : 'Not connected'}</Badge>
                   </div>
-                  <div className="mt-1 text-sm sm:text-xs text-slate-500">
-                    Join <span className="font-semibold text-slate-700">JW- Guest WiFi</span> or{' '}
-                    <span className="font-semibold text-slate-700">JillamyWHSE-WiFi</span>.
-                  </div>
+                  {!wifiOk ? (
+                    <div className="mt-1 text-sm sm:text-xs text-slate-500">
+                      Join <span className="font-semibold text-slate-700">JW- Guest WiFi</span> or{' '}
+                      <span className="font-semibold text-slate-700">JillamyWHSE-WiFi</span>.
+                    </div>
+                  ) : null}
                   <div className="mt-3">
                     <SecondaryButton
                       type="button"
