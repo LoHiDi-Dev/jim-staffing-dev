@@ -257,14 +257,14 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                       Clock in
                     </SuccessButton>
                   ) : (
-                    <>
-                      <SecondaryButton type="button" className="w-full justify-center" disabled={!canAct || clockState.onLunch} onClick={() => doEvent('LUNCH_START')}>
-                        Start Lunch (30 min)
-                      </SecondaryButton>
-                      <DangerButton type="button" className="w-full justify-center" disabled={!canAct} onClick={() => doEvent('CLOCK_OUT')}>
-                        Clock out
-                      </DangerButton>
-                    </>
+                    <DangerButton
+                      type="button"
+                      className="w-auto min-w-[200px] justify-center justify-self-center sm:col-span-2"
+                      disabled={!canAct}
+                      onClick={() => doEvent('CLOCK_OUT')}
+                    >
+                      Clock out
+                    </DangerButton>
                   )}
                 </div>
 
