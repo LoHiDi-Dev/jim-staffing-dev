@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
+import { createHash } from 'node:crypto'
 import { prisma } from '../prisma.js'
 import { verifyPassword } from '../security.js'
 
@@ -49,6 +50,17 @@ function cookieOptions(isProd: boolean) {
   }
 }
 
+function hashRefreshToken(token: string): string {
+  // Refresh tokens are high-entropy JWTs; use SHA-256 for fast server-side hashing.
+  return `sha256:${createHash('sha256').update(token).digest('hex')}`
+}
+
+async function verifyRefreshTokenHash(token: string, stored: string): Promise<boolean> {
+  // Backwards compatible: older sessions stored bcrypt hashes.
+  if (stored.startsWith('sha256:')) return stored === hashRefreshToken(token)
+  return await bcrypt.compare(token, stored)
+}
+
 export const authRoutes: FastifyPluginAsync = async (app) => {
   const isProd = (process.env.NODE_ENV ?? '').toLowerCase() === 'production'
 
@@ -81,7 +93,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       },
     })
     const refreshToken = await app.signRefreshToken({ userId: user.id, sessionId: session.id })
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 12)
+    const refreshTokenHash = hashRefreshToken(refreshToken)
     await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash } })
 
     reply.setCookie('jim_refresh', refreshToken, cookieOptions(isProd))
@@ -128,7 +140,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       },
     })
     const refreshToken = await app.signRefreshToken({ userId: user.id, sessionId: session.id })
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 12)
+    const refreshTokenHash = hashRefreshToken(refreshToken)
     await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash } })
 
     reply.setCookie('jim_refresh', refreshToken, cookieOptions(isProd))
@@ -188,7 +200,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       },
     })
     const refreshToken = await app.signRefreshToken({ userId: created.id, sessionId: session.id })
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 12)
+    const refreshTokenHash = hashRefreshToken(refreshToken)
     await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash } })
 
     reply.setCookie('jim_refresh', refreshToken, cookieOptions(isProd))
@@ -234,7 +246,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (session.revokedAt) throw app.httpErrors.unauthorized('Session revoked.')
     if (session.expiresAt.getTime() < Date.now()) throw app.httpErrors.unauthorized('Session expired.')
 
-    const hashOk = await bcrypt.compare(token, session.refreshTokenHash)
+    const hashOk = await verifyRefreshTokenHash(token, session.refreshTokenHash)
     if (!hashOk) throw app.httpErrors.unauthorized('Invalid session.')
 
     const user = await prisma.user.findUnique({ where: { id: session.userId } })
@@ -248,7 +260,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     // Rotate refresh token.
     const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     const newRefresh = await app.signRefreshToken({ userId: user.id, sessionId: session.id })
-    const newHash = await bcrypt.hash(newRefresh, 12)
+    const newHash = hashRefreshToken(newRefresh)
     await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash: newHash, expiresAt: newExpiresAt } })
 
     reply.setCookie('jim_refresh', newRefresh, cookieOptions(isProd))
