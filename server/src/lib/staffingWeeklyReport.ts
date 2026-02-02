@@ -1,6 +1,6 @@
-import { prisma } from '../prisma'
-import { loadEnv } from '../env'
-import { sendEmail } from './email'
+import { prisma } from '../prisma.js'
+import { loadEnv } from '../env.js'
+import { sendEmail } from './email.js'
 
 export type WeeklyReportSummaryRow = {
   userId: string

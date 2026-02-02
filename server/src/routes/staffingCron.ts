@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { loadEnv } from '../env'
-import { runWeeklyReport } from '../lib/staffingWeeklyReport'
+import { loadEnv } from '../env.js'
+import { runWeeklyReport } from '../lib/staffingWeeklyReport.js'
 
 /**
  * Cron endpoint for weekly staffing report. Secured by STAFFING_REPORT_CRON_SECRET.

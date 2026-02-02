@@ -3,8 +3,8 @@ import fp from 'fastify-plugin'
 import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
 import { z } from 'zod'
-import { prisma } from '../prisma'
-import type { AuthContext, AuthedUser } from '../types'
+import { prisma } from '../prisma.js'
+import type { AuthContext, AuthedUser } from '../types.js'
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {

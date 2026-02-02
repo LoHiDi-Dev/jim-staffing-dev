@@ -1,10 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
-import { prisma } from '../prisma'
+import { prisma } from '../prisma.js'
 import type { StaffingAgency, StaffingBlockReason, StaffingEventStatus, StaffingEventType } from '@prisma/client'
-import { evalWifiAllowlist, newPunchTokenSecret, sha256Hex, shouldBypassWifiAllowlistForUser, userAgentHash } from '../lib/staffingPunchSecurity'
-import { InMemoryRateLimiter } from '../lib/staffingRateLimit'
+import { evalWifiAllowlist, newPunchTokenSecret, sha256Hex, shouldBypassWifiAllowlistForUser, userAgentHash } from '../lib/staffingPunchSecurity.js'
+import { InMemoryRateLimiter } from '../lib/staffingRateLimit.js'
 
 const STAFFING_SITE = {
   address: '1130 E Kearney St, Mesquite, TX 75149',

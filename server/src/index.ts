@@ -1,5 +1,5 @@
-import { buildApp } from './app'
-import { loadEnv } from './env'
+import { buildApp } from './app.js'
+import { loadEnv } from './env.js'
 
 const env = loadEnv()
 const app = buildApp()

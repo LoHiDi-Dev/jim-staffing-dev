@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify'
 import { createHash } from 'node:crypto'
-import { randomToken } from '../security'
-import { loadEnv } from '../env'
+import { randomToken } from '../security.js'
+import { loadEnv } from '../env.js'
 
 export type WifiAllowlistStatus = 'PASS' | 'FAIL' | 'DEV_BYPASS'
 

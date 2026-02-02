@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
-import { prisma } from '../prisma'
-import { verifyPassword } from '../security'
+import { prisma } from '../prisma.js'
+import { verifyPassword } from '../security.js'
 
 const LoginBody = z.object({
   email: z.string().email(),

@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer'
-import { loadEnv } from '../env'
+import { loadEnv } from '../env.js'
 
 export async function sendEmail(args: {
   to: string[]

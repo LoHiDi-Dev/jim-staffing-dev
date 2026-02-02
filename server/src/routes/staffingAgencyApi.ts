@@ -2,9 +2,9 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { createHash } from 'node:crypto'
-import { prisma } from '../prisma'
-import { loadEnv } from '../env'
-import { InMemoryRateLimiter } from '../lib/staffingRateLimit'
+import { prisma } from '../prisma.js'
+import { loadEnv } from '../env.js'
+import { InMemoryRateLimiter } from '../lib/staffingRateLimit.js'
 
 type StaffingAgency = 'PROLOGISTIX' | 'STAFF_FORCE'
 
