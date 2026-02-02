@@ -483,8 +483,12 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
               <div className="my-3 h-px w-full bg-slate-200" />
               <div className="space-y-1">
                 <p className="break-words text-[10px] leading-tight text-slate-500">
-                  (JIM) Jillamy Inventory Management web app access is managed by the administrator. If you don’t have credentials, please
-                  request access.
+                  (JIM) Jillamy Inventory Management web app access is managed by the administrator.
+                  <span className="md:hidden"> </span>
+                  <span className="hidden md:inline">
+                    <br />
+                  </span>
+                  If you don’t have credentials, please request access.
                 </p>
               </div>
             </div>
