@@ -184,51 +184,79 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
         ) : null}
 
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
-          {/* Left Column - Location Check */}
+          {/* Left Column - Verification (Wi‑Fi OR Location) */}
           <section className="space-y-4">
             <Card>
               <CardHeader className="px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-lg sm:text-base font-extrabold text-[color:var(--brand-primary)]">Location Check</div>
-                  <Badge tone={verified ? 'success' : 'warn'}>{verified ? 'Verified' : 'Not verified'}</Badge>
+                  <div className="text-lg sm:text-base font-extrabold text-[color:var(--brand-primary)]">Verification</div>
+                  <Badge tone={verified || wifiOk ? 'success' : 'warn'}>{verified || wifiOk ? 'Ready' : 'Not verified'}</Badge>
                 </div>
               </CardHeader>
-              <CardBody className="px-4 py-3 space-y-3">
-                <div className="flex items-center gap-2 text-base sm:text-sm text-slate-600">
-                  <MapPin className="h-4 w-4 text-slate-400" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <div className="text-base sm:text-sm font-semibold text-slate-900">{STAFFING_SITE.address}</div>
+              <CardBody className="px-4 py-4 space-y-4">
+                {/* Wi‑Fi allowlist status */}
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-base sm:text-sm font-extrabold text-slate-900">DTX Wi‑Fi</div>
+                    <Badge tone={wifiOk ? 'success' : 'warn'}>{wifiOk ? 'Connected' : 'Not connected'}</Badge>
+                  </div>
+                  <div className="mt-3">
+                    <SecondaryButton type="button" className="h-11 w-full justify-center text-base sm:text-sm" onClick={refreshState}>
+                      <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                      Recheck
+                    </SecondaryButton>
                   </div>
                 </div>
 
-                {geo.state === 'blocked' ? (
-                  <AlertBanner tone="warn" icon={MapPin} title={geo.message} />
-                ) : null}
-                {geo.state === 'ok' && !geo.inRange ? (
-                  <AlertBanner
-                    tone="warn"
-                    title={
-                      <>
-                        <span className="font-semibold">{`Out of range (${metersToMiles(geo.distanceMeters).toFixed(2)} mi from DTX Warehouse). `}</span>
-                        Clock in/out requires DTX Warehouse Wi-Fi and a location check.
-                      </>
-                    }
-                  />
-                ) : null}
-                {geo.state === 'ok' && !geo.accuracyOk ? (
-                  <AlertBanner
-                    tone="warn"
-                    icon={MapPin}
-                    title="Location accuracy too low"
-                    description={`Try again outside or with a stronger GPS signal. (Accuracy: ~${Math.round(geo.accuracyMeters ?? 0)}m)`}
-                  />
-                ) : null}
+                {/* Location check */}
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-base sm:text-sm font-extrabold text-slate-900">Location</div>
+                    <Badge tone={verified ? 'success' : 'warn'}>{verified ? 'Verified' : 'Not verified'}</Badge>
+                  </div>
 
-                <div>
-                  <SecondaryButton type="button" className="h-11 w-full justify-center text-base sm:text-sm" onClick={refreshLocation} disabled={busyGeo}>
-                    <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-                    {busyGeo ? 'Verifying…' : 'Verify location'}
-                  </SecondaryButton>
+                  <div className="mt-3 flex items-center gap-2 text-base sm:text-sm text-slate-600">
+                    <MapPin className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <div className="text-base sm:text-sm font-semibold text-slate-900">{STAFFING_SITE.address}</div>
+                    </div>
+                  </div>
+
+                  {geo.state === 'blocked' ? (
+                    <div className="mt-3">
+                      <AlertBanner tone="warn" icon={MapPin} title={geo.message} />
+                    </div>
+                  ) : null}
+                  {geo.state === 'ok' && !geo.inRange ? (
+                    <div className="mt-3">
+                      <AlertBanner
+                        tone="warn"
+                        title={
+                          <>
+                            <span className="font-semibold">{`Out of range (${metersToMiles(geo.distanceMeters).toFixed(2)} mi from DTX Warehouse). `}</span>
+                            Clock in/out requires verified warehouse Wi‑Fi or a verified location check.
+                          </>
+                        }
+                      />
+                    </div>
+                  ) : null}
+                  {geo.state === 'ok' && !geo.accuracyOk ? (
+                    <div className="mt-3">
+                      <AlertBanner
+                        tone="warn"
+                        icon={MapPin}
+                        title="Location accuracy too low"
+                        description={`Try again outside or with a stronger GPS signal. (Accuracy: ~${Math.round(geo.accuracyMeters ?? 0)}m)`}
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3">
+                    <SecondaryButton type="button" className="h-11 w-full justify-center text-base sm:text-sm" onClick={refreshLocation} disabled={busyGeo}>
+                      <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                      {busyGeo ? 'Verifying…' : 'Verify location'}
+                    </SecondaryButton>
+                  </div>
                 </div>
               </CardBody>
             </Card>
