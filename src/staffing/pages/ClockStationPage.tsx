@@ -35,6 +35,14 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
   const nav = useNavigate()
   const sigRef = useRef<SignaturePadHandle | null>(null)
   const [busySig, setBusySig] = useState(false)
+  const [verificationMode, setVerificationMode] = useState<'auto' | 'wifi' | 'location'>(() => {
+    try {
+      const v = localStorage.getItem('jim.staffing.verificationMode')
+      return v === 'wifi' || v === 'location' || v === 'auto' ? v : 'auto'
+    } catch {
+      return 'auto'
+    }
+  })
 
   const firstName = useMemo(() => (user?.name ? user.name.split(' ')[0] : 'there'), [user?.name])
 
@@ -95,7 +103,17 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
 
   // Verification is OR-based: Wi‑Fi allowlist OR verified location.
   // Do not block actions while location is refreshing if Wi‑Fi is already verified.
-  const canAct = online && (wifiOk || verified)
+  const canAct =
+    online && (verificationMode === 'wifi' ? wifiOk : verificationMode === 'location' ? verified : wifiOk || verified)
+
+  const setMode = (m: 'auto' | 'wifi' | 'location') => {
+    setVerificationMode(m)
+    try {
+      localStorage.setItem('jim.staffing.verificationMode', m)
+    } catch {
+      // ignore
+    }
+  }
 
   const doEvent = async (type: 'CLOCK_IN' | 'LUNCH_START' | 'CLOCK_OUT') => {
     setErr(null)
@@ -191,12 +209,38 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
               <CardHeader className="px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-lg sm:text-base font-extrabold text-[color:var(--brand-primary)]">Verification</div>
-                  <Badge tone={verified || wifiOk ? 'success' : 'warn'}>{verified || wifiOk ? 'Ready' : 'Not verified'}</Badge>
+                  <Badge
+                    tone={
+                      (verificationMode === 'wifi' && wifiOk) ||
+                      (verificationMode === 'location' && verified) ||
+                      (verificationMode === 'auto' && (wifiOk || verified))
+                        ? 'success'
+                        : 'warn'
+                    }
+                  >
+                    {(verificationMode === 'wifi' && wifiOk) ||
+                    (verificationMode === 'location' && verified) ||
+                    (verificationMode === 'auto' && (wifiOk || verified))
+                      ? 'Ready'
+                      : 'Not verified'}
+                  </Badge>
                 </div>
+                {verificationMode !== 'auto' ? (
+                  <div className="mt-1 text-right">
+                    <button
+                      type="button"
+                      className={`${ui.focusRing} text-sm sm:text-xs font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
+                      onClick={() => setMode('auto')}
+                    >
+                      Show both
+                    </button>
+                  </div>
+                ) : null}
               </CardHeader>
               <CardBody className="px-4 py-4 space-y-4">
                 {/* Wi‑Fi allowlist status */}
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                {verificationMode !== 'location' ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-base sm:text-sm font-extrabold text-slate-900">DTX Wi‑Fi</div>
                     <Badge tone={wifiOk ? 'success' : 'warn'}>{wifiOk ? 'Connected' : 'Not connected'}</Badge>
@@ -206,15 +250,35 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                     <span className="font-semibold text-slate-700">JillamyWHSE-WiFi</span>.
                   </div>
                   <div className="mt-3">
-                    <SecondaryButton type="button" className="h-11 w-full justify-center text-base sm:text-sm" onClick={refreshState}>
+                    <SecondaryButton
+                      type="button"
+                      className="h-11 w-full justify-center text-base sm:text-sm"
+                      onClick={() => {
+                        if (verificationMode === 'auto') setMode('wifi')
+                        void refreshState()
+                      }}
+                    >
                       <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
                       Recheck
                     </SecondaryButton>
                   </div>
-                </div>
+                  {verificationMode === 'wifi' ? (
+                    <div className="mt-2 text-center">
+                      <button
+                        type="button"
+                        className={`${ui.focusRing} text-sm sm:text-xs font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
+                        onClick={() => setMode('location')}
+                      >
+                        Use Location instead
+                      </button>
+                    </div>
+                  ) : null}
+                  </div>
+                ) : null}
 
                 {/* Location check */}
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                {verificationMode !== 'wifi' ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-base sm:text-sm font-extrabold text-slate-900">Location</div>
                     <Badge tone={verified ? 'success' : 'warn'}>{verified ? 'Verified' : 'Not verified'}</Badge>
@@ -257,12 +321,32 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                   ) : null}
 
                   <div className="mt-3">
-                    <SecondaryButton type="button" className="h-11 w-full justify-center text-base sm:text-sm" onClick={refreshLocation} disabled={busyGeo}>
+                    <SecondaryButton
+                      type="button"
+                      className="h-11 w-full justify-center text-base sm:text-sm"
+                      onClick={() => {
+                        if (verificationMode === 'auto') setMode('location')
+                        void refreshLocation()
+                      }}
+                      disabled={busyGeo}
+                    >
                       <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
                       {busyGeo ? 'Verifying…' : 'Verify location'}
                     </SecondaryButton>
                   </div>
+                  {verificationMode === 'location' ? (
+                    <div className="mt-2 text-center">
+                      <button
+                        type="button"
+                        className={`${ui.focusRing} text-sm sm:text-xs font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
+                        onClick={() => setMode('wifi')}
+                      >
+                        Use Wi‑Fi instead
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
+                ) : null}
               </CardBody>
             </Card>
           </section>
