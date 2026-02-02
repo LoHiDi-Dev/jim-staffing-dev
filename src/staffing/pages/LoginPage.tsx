@@ -153,8 +153,8 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
   }
 
   return (
-    <div className={ui.page.bg}>
-      <div className="flex min-h-full items-center justify-center px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-[#f4f6fb]">
+      <div className="flex min-h-screen items-start justify-center px-4 pb-4 pt-6 sm:items-center sm:px-6 sm:py-8">
         <div className="relative w-full max-w-[480px] rounded-2xl bg-white px-6 py-6 shadow-[0_14px_35px_rgba(15,23,42,0.12)] ring-1 ring-slate-200">
           <button
             type="button"
@@ -170,7 +170,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
             <BrandMark size="lg" subtitle="Workforce Attendance" wrapTitle wrapSubtitle className="w-full flex-col" />
           </div>
 
-          <div className="mt-7 space-y-5">
+          <div className="mt-6 space-y-4 sm:mt-7 sm:space-y-5">
             {wasLocked ? (
               <AlertBanner
                 tone="warn"
@@ -284,7 +284,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                         className={`${ui.focusRing} text-sm sm:text-xs font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
                         onClick={() => switchLoginMethod('userId')}
                       >
-                        Switch to User ID
+                        Use User ID instead
                       </button>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -333,7 +333,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                         className={`${ui.focusRing} text-sm sm:text-xs font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
                         onClick={() => switchLoginMethod('fullName')}
                       >
-                        Switch to Full Name
+                        Use Full Name instead
                       </button>
                     </div>
                     <TextInput
@@ -482,8 +482,8 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
               </a>
               <div className="my-3 h-px w-full bg-slate-200" />
               <div className="space-y-1">
-                <p className="break-words text-[10px] leading-tight text-slate-500">
-                  (JIM) Jillamy Inventory Management web app access is managed by the administrator.
+                <p className="break-words text-[11px] leading-snug text-slate-500">
+                  Access is managed by the administrator.
                   <span className="md:hidden"> </span>
                   <span className="hidden md:inline">
                     <br />
