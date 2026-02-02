@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
-import { PDFDocument, StandardFonts } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { prisma } from '../prisma.js'
 import type { StaffingAgency, StaffingBlockReason, StaffingEventStatus, StaffingEventType } from '@prisma/client'
 import { evalWifiAllowlist, newPunchTokenSecret, sha256Hex, shouldBypassWifiAllowlistForUser, userAgentHash } from '../lib/staffingPunchSecurity.js'
@@ -625,60 +625,146 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
     const font = await pdf.embedFont(StandardFonts.Helvetica)
     const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold)
 
-    const sanitize = (t: string) =>
+    const tz = 'America/Chicago'
+    const safe = (t: string) =>
       String(t ?? '')
         .replace(/→/g, '->')
         .replace(/\u2014/g, '-') // em dash
         .replace(/\u2013/g, '-') // en dash
 
-    const draw = (t: string, x: number, y: number, bold = false, size = 10) => {
-      page.drawText(sanitize(t), { x, y, size, font: bold ? fontBold : font })
+    const fmtDate = (isoYmd: string) => isoYmd
+    const fmtTime = (iso: string | null) => {
+      if (!iso) return '—'
+      try {
+        return new Date(iso).toLocaleTimeString('en-US', {
+          timeZone: tz,
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      } catch {
+        return iso.slice(11, 16)
+      }
+    }
+    const rangeFrom = from.toISOString().slice(0, 10)
+    const rangeToInclusive = new Date(to.getTime() - 1).toISOString().slice(0, 10)
+    const rangeLabel = `${rangeFrom} to ${rangeToInclusive}`
+
+    const drawText = (t: string, x: number, y: number, opts?: { bold?: boolean; size?: number; color?: ReturnType<typeof rgb> }) => {
+      const size = opts?.size ?? 10
+      const bold = Boolean(opts?.bold)
+      page.drawText(safe(t), {
+        x,
+        y,
+        size,
+        font: bold ? fontBold : font,
+        color: opts?.color,
+      })
     }
 
-    draw('JIM Staffing® — Weekly Timecard', 36, 760, true, 14)
-    draw(`User: ${ctx.userId}`, 36, 742, false, 10)
-    draw(`Site: ${ctx.siteId}`, 36, 732, false, 9)
-    draw(`Range: ${from.toISOString()} → ${to.toISOString()}`, 36, 718, false, 9)
+    // Header bar
+    const brand = rgb(30 / 255, 58 / 255, 138 / 255) // --brand-primary
+    const slate900 = rgb(15 / 255, 23 / 255, 42 / 255)
+    const slate600 = rgb(71 / 255, 85 / 255, 105 / 255)
+    const slate200 = rgb(226 / 255, 232 / 255, 240 / 255)
+    const slate50 = rgb(248 / 255, 250 / 255, 252 / 255)
 
-    const startY = 690
-    const rowH = 20
-    const cols = [
-      { label: 'Date', x: 36 },
-      { label: 'Shift', x: 120 },
-      { label: 'In', x: 175 },
-      { label: 'Out', x: 285 },
-      { label: 'Lunch', x: 395 },
-      { label: 'Hours', x: 445 },
-      { label: 'Verified', x: 495 },
-      { label: 'Signed', x: 560 },
+    page.drawRectangle({ x: 0, y: 740, width: 612, height: 52, color: brand })
+    drawText('JIM Staffing', 36, 770, { bold: true, size: 18, color: rgb(1, 1, 1) })
+    drawText('Weekly Timecard', 36, 748, { size: 11, color: rgb(1, 1, 1) })
+
+    // Meta
+    const metaY = 716
+    drawText(profile.userId ? `User ID: ${profile.userId}` : `User ID: ${ctx.userId}`, 36, metaY, { size: 10, color: slate900 })
+    drawText(`Site: ${ctx.siteId ?? '—'}`, 36, metaY - 14, { size: 10, color: slate600 })
+    drawText(`Week: ${rangeLabel}`, 36, metaY - 28, { size: 10, color: slate600 })
+
+    // Summary pill (top-right)
+    const pillW = 150
+    const pillH = 28
+    const pillX = 612 - 36 - pillW
+    const pillY = metaY - 8
+    page.drawRectangle({ x: pillX, y: pillY, width: pillW, height: pillH, color: slate50, borderColor: slate200, borderWidth: 1 })
+    drawText('Total hours', pillX + 12, pillY + 10, { size: 9, color: slate600 })
+    drawText(totals.hours.toFixed(2), pillX + 92, pillY + 7, { bold: true, size: 12, color: slate900 })
+
+    // Table
+    const tableX = 36
+    const tableW = 612 - 72
+    const headerH = 22
+    const rowH = 24
+    const startY = 660
+
+    const colDefs = [
+      { key: 'date', label: 'Date', w: 88, align: 'left' as const },
+      { key: 'shift', label: 'Shift', w: 54, align: 'left' as const },
+      { key: 'in', label: 'In', w: 78, align: 'left' as const },
+      { key: 'out', label: 'Out', w: 78, align: 'left' as const },
+      { key: 'lunch', label: 'Lunch', w: 54, align: 'left' as const },
+      { key: 'hours', label: 'Hours', w: 56, align: 'right' as const },
+      { key: 'verified', label: 'Verified', w: 132, align: 'left' as const },
+      { key: 'signed', label: 'Signed', w: 44, align: 'center' as const },
     ]
-    cols.forEach((c) => draw(c.label, c.x, startY, true, 9))
-    let y = startY - 12
-    for (const r of rows) {
-      draw(r.date, cols[0].x, y, false, 8)
-      draw(String(r.shift), cols[1].x, y, false, 8)
-      draw(r.timeIn ? r.timeIn.slice(11, 16) : '—', cols[2].x, y, false, 8)
-      draw(r.timeOut ? r.timeOut.slice(11, 16) : '—', cols[3].x, y, false, 8)
-      draw(r.lunchMinutes ? `${r.lunchMinutes}m` : '—', cols[4].x, y, false, 8)
-      draw(r.hours ? r.hours.toFixed(2) : '0.00', cols[5].x, y, false, 8)
-      draw(r.verifiedVia, cols[6].x, y, false, 8)
-      draw(r.signed === null ? '—' : r.signed ? 'Y' : 'N', cols[7].x, y, false, 8)
+    const totalW = colDefs.reduce((s, c) => s + c.w, 0)
+    // Scale to fit exactly table width (keeps proportions)
+    const scale = tableW / totalW
+    const cols = colDefs.map((c) => ({ ...c, w: c.w * scale }))
 
-      // Best-effort signature thumbnail when present (kept small to maintain one-page layout).
+    // Header background
+    page.drawRectangle({ x: tableX, y: startY, width: tableW, height: headerH, color: slate50, borderColor: slate200, borderWidth: 1 })
+    let cx = tableX
+    for (const c of cols) {
+      drawText(c.label, cx + 8, startY + 7, { bold: true, size: 9, color: slate600 })
+      cx += c.w
+    }
+
+    // Rows
+    let y = startY - rowH
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i]!
+      const fill = i % 2 === 0 ? rgb(1, 1, 1) : rgb(250 / 255, 252 / 255, 255 / 255)
+      page.drawRectangle({ x: tableX, y, width: tableW, height: rowH, color: fill, borderColor: slate200, borderWidth: 1 })
+
+      const values = {
+        date: fmtDate(r.date),
+        shift: String(r.shift ?? '—'),
+        in: fmtTime(r.timeIn),
+        out: fmtTime(r.timeOut),
+        lunch: r.lunchMinutes ? `${r.lunchMinutes}m` : '—',
+        hours: (r.hours ?? 0).toFixed(2),
+        verified: r.verifiedVia || '—',
+        signed: r.signed === null ? '—' : r.signed ? 'Yes' : 'No',
+      } as const
+
+      let x = tableX
+      for (const c of cols) {
+        const txt = safe(String((values as Record<string, string>)[c.key]))
+        if (c.align === 'right') {
+          // crude right-align: shift by approx char width (best-effort)
+          drawText(txt, x + c.w - 8 - txt.length * 4.6, y + 7, { size: 9, color: slate900 })
+        } else {
+          drawText(txt, x + 8, y + 7, { size: 9, color: slate900 })
+        }
+        x += c.w
+      }
+
+      // Signature preview (optional) next to "Signed"
       if (r.signaturePngBase64 && r.signaturePngBase64.startsWith('data:image/png;base64,')) {
         try {
           const b64 = r.signaturePngBase64.slice('data:image/png;base64,'.length)
           const bytes = Buffer.from(b64, 'base64')
           const img = await pdf.embedPng(bytes)
-          page.drawImage(img, { x: 510, y: y - 2, width: 40, height: 12 })
+          page.drawImage(img, { x: tableX + tableW - 74, y: y + 6, width: 60, height: 12 })
         } catch {
-          // ignore image decode errors; the Signed column still indicates status
+          // ignore image decode errors
         }
       }
 
       y -= rowH
     }
-    draw(`Total hours: ${totals.hours.toFixed(2)}`, 36, y - 8, true, 11)
+
+    // Footer note
+    drawText('All times shown in local site time.', 36, 66, { size: 9, color: slate600 })
+    drawText('© 2026 JIM Staffing', 36, 52, { size: 9, color: slate600 })
 
     const bytes = Buffer.from(await pdf.save())
     reply.header('Content-Type', 'application/pdf')

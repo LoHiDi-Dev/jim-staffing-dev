@@ -2,7 +2,7 @@ import { CalendarDays, Download, Loader2, Clock, FileText } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ServerUser } from '../../api/auth'
-import { apiMyTimes, apiMyTimesExportCsv, apiMyTimesExportPdf, type StaffingEventType } from '../../api/staffing'
+import { apiMyTimes, apiMyTimesExportPdf, type StaffingEventType } from '../../api/staffing'
 import { AlertBanner } from '../../components/ui/AlertBanner'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -14,7 +14,6 @@ import { STAFFING_COPY } from '../copy'
 export function MyTimesPage({ user }: { user: ServerUser }) {
   const [tab, setTab] = useState<'this' | 'last'>('this')
   const [busy, setBusy] = useState(false)
-  const [exporting, setExporting] = useState(false)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [events, setEvents] = useState<Array<{ type: StaffingEventType; timestamp: string }> | null>(null)
@@ -53,27 +52,6 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
   }, [events])
   const days = computed?.days ?? []
   const summary = computed?.summary ?? { totalHours: 0, daysWorked: 0, avgHoursPerDay: 0, status: 'OK' as const }
-
-  const downloadCsv = async () => {
-    setErr(null)
-    setExporting(true)
-    try {
-      const blob = await apiMyTimesExportCsv({ week: tab })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `JIM_Staffing_MyTimes_${user.id}_${tab}.csv`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message?: unknown }).message) : 'Export failed.'
-      setErr(msg)
-    } finally {
-      setExporting(false)
-    }
-  }
 
   const downloadPdf = async () => {
     setErr(null)
@@ -155,17 +133,7 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className={ui.typography.sectionTitle}>Weekly Summary</div>
-                <div className="flex items-center gap-2">
-                  <Badge tone={summary.status === 'OK' ? 'success' : 'warn'}>{summary.status === 'OK' ? 'OK' : 'Incomplete'}</Badge>
-                  <Button variant="outline" type="button" onClick={() => void downloadPdf()} disabled={downloadingPdf || busy || !events}>
-                    {downloadingPdf ? 'Downloading…' : 'Download PDF'}
-                    {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
-                  </Button>
-                  <Button variant="outline" type="button" onClick={() => void downloadCsv()} disabled={exporting || busy || !events}>
-                    {exporting ? 'Exporting…' : 'Export CSV'}
-                    {exporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
-                  </Button>
-                </div>
+                <Badge tone={summary.status === 'OK' ? 'success' : 'warn'}>{summary.status === 'OK' ? 'OK' : 'Incomplete'}</Badge>
               </div>
             </CardHeader>
             <CardBody>
@@ -295,6 +263,19 @@ export function MyTimesPage({ user }: { user: ServerUser }) {
                   </div>
                 </div>
               )}
+
+              <div className="mt-6 border-t border-slate-200 pt-4">
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => void downloadPdf()}
+                  disabled={downloadingPdf || busy || !events}
+                  className="w-full justify-center"
+                >
+                  {downloadingPdf ? 'Downloading…' : 'Download PDF'}
+                  {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+                </Button>
+              </div>
             </CardBody>
           </Card>
         </div>
