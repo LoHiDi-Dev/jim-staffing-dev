@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapPin, RefreshCw, Timer, Clock, FileText } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { ServerUser } from '../../api/auth'
@@ -29,6 +29,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
   const [geo, setGeo] = useState<GeoStatus>({ state: 'idle' })
   const [busyGeo, setBusyGeo] = useState(false)
   const clockStateCacheKey = useMemo(() => `jim.staffing.clockState.${user.id}`, [user.id])
+  const verificationMethodKey = useMemo(() => `jim.staffing.verificationMethod.${user.id}`, [user.id])
   const [clockState, setClockState] = useState<StaffingClockState | null>(() => {
     try {
       const raw = sessionStorage.getItem(clockStateCacheKey)
@@ -46,14 +47,36 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
   const nav = useNavigate()
   const sigRef = useRef<SignaturePadHandle | null>(null)
   const [busySig, setBusySig] = useState(false)
-  const [verificationMode, setVerificationMode] = useState<'auto' | 'wifi' | 'location'>(() => {
+  const [verificationMethod, setVerificationMethod] = useState<'wifi' | 'location' | null>(() => {
     try {
-      const v = localStorage.getItem('jim.staffing.verificationMode')
-      return v === 'wifi' || v === 'location' || v === 'auto' ? v : 'auto'
+      const v = localStorage.getItem(verificationMethodKey)
+      if (v === 'wifi' || v === 'location') return v
+      // Migration from older global key.
+      const legacy = localStorage.getItem('jim.staffing.verificationMode')
+      if (legacy === 'wifi' || legacy === 'location') {
+        localStorage.setItem(verificationMethodKey, legacy)
+        localStorage.removeItem('jim.staffing.verificationMode')
+        return legacy
+      }
+      if (legacy === 'auto') localStorage.removeItem('jim.staffing.verificationMode')
+      return null
     } catch {
-      return 'auto'
+      return null
     }
   })
+
+  const setMethod = useCallback(
+    (m: 'wifi' | 'location') => {
+      setVerificationMethod(m)
+      try {
+        localStorage.setItem(verificationMethodKey, m)
+        localStorage.removeItem('jim.staffing.verificationMode')
+      } catch {
+        // ignore
+      }
+    },
+    [verificationMethodKey],
+  )
 
   const firstName = useMemo(() => (user?.name ? user.name.split(' ')[0] : 'there'), [user?.name])
 
@@ -121,18 +144,21 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
       }
       const wifiOkNow = s?.wifiAllowlistStatus === 'PASS' || s?.wifiAllowlistStatus === 'DEV_BYPASS'
 
-      // If Wi‑Fi is already verified, don’t prompt for location permission on login.
-      // Only request location when Wi‑Fi isn't verified, or if user explicitly chose location mode.
-      if (wifiOkNow && verificationMode !== 'location') {
-        if (verificationMode === 'auto') setMode('wifi')
+      // If user chose Wi‑Fi, never prompt for location permission.
+      if (verificationMethod === 'wifi') return
+
+      // If user chose Location, run location verification automatically.
+      if (verificationMethod === 'location') {
+        await refreshLocation()
         return
       }
 
-      await refreshLocation()
+      // First-time (no preference): show both options, but do not auto-prompt location.
+      // If Wi‑Fi is already verified, auto-select Wi‑Fi to avoid showing both forever.
+      if (verificationMethod === null && wifiOkNow) setMethod('wifi')
     }
     void run()
-    // We re-run if verificationMode changes (e.g., user explicitly chooses location mode).
-  }, [verificationMode, clockStateCacheKey])
+  }, [verificationMethod, clockStateCacheKey, setMethod])
 
   useEffect(() => {
     const on = () => setOnline(true)
@@ -148,19 +174,9 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
   const verified = geo.state === 'ok' && geo.inRange && geo.accuracyOk
   const wifiOk = clockState?.wifiAllowlistStatus === 'PASS' || clockState?.wifiAllowlistStatus === 'DEV_BYPASS'
 
-  // Verification is OR-based: Wi‑Fi allowlist OR verified location.
-  // Do not block actions while location is refreshing if Wi‑Fi is already verified.
-  const canAct =
-    online && (verificationMode === 'wifi' ? wifiOk : verificationMode === 'location' ? verified : wifiOk || verified)
-
-  const setMode = (m: 'auto' | 'wifi' | 'location') => {
-    setVerificationMode(m)
-    try {
-      localStorage.setItem('jim.staffing.verificationMode', m)
-    } catch {
-      // ignore
-    }
-  }
+  // Enforce ONE verification method at a time (after first choice):
+  // - If no method chosen yet (first-time), user must choose before punching.
+  const canAct = online && (verificationMethod === 'wifi' ? wifiOk : verificationMethod === 'location' ? verified : false)
 
   const doEvent = async (type: 'CLOCK_IN' | 'LUNCH_START' | 'CLOCK_OUT') => {
     setErr(null)
@@ -258,16 +274,16 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                   <div className="text-lg sm:text-base font-extrabold text-[color:var(--brand-primary)]">Verification</div>
                   <Badge
                     tone={
-                      (verificationMode === 'wifi' && wifiOk) ||
-                      (verificationMode === 'location' && verified) ||
-                      (verificationMode === 'auto' && (wifiOk || verified))
+                      (verificationMethod === 'wifi' && wifiOk) ||
+                      (verificationMethod === 'location' && verified) ||
+                      (verificationMethod === null && (wifiOk || verified))
                         ? 'neutral'
                         : 'warn'
                     }
                   >
-                    {(verificationMode === 'wifi' && wifiOk) ||
-                    (verificationMode === 'location' && verified) ||
-                    (verificationMode === 'auto' && (wifiOk || verified))
+                    {(verificationMethod === 'wifi' && wifiOk) ||
+                    (verificationMethod === 'location' && verified) ||
+                    (verificationMethod === null && (wifiOk || verified))
                       ? 'Passed'
                       : 'Not verified'}
                   </Badge>
@@ -276,7 +292,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
               </CardHeader>
               <CardBody className="px-4 py-4 space-y-4">
                 {/* Wi‑Fi allowlist status */}
-                {verificationMode !== 'location' ? (
+                {verificationMethod !== 'location' ? (
                   <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-base sm:text-sm font-extrabold text-slate-900">DTX Wi‑Fi</div>
@@ -293,7 +309,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                       type="button"
                       className="h-11 w-full justify-center text-base sm:text-sm"
                       onClick={() => {
-                        if (verificationMode === 'auto') setMode('wifi')
+                        if (verificationMethod === null) setMethod('wifi')
                         void refreshState()
                       }}
                     >
@@ -301,12 +317,12 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                       Recheck
                     </SecondaryButton>
                   </div>
-                  {verificationMode === 'wifi' && !wifiOk ? (
+                  {verificationMethod === 'wifi' ? (
                     <div className="mt-2 text-center">
                       <button
                         type="button"
                         className={`${ui.focusRing} text-sm sm:text-xs font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
-                        onClick={() => setMode('location')}
+                        onClick={() => setMethod('location')}
                       >
                         Use Location instead
                       </button>
@@ -316,7 +332,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                 ) : null}
 
                 {/* Location check */}
-                {verificationMode !== 'wifi' ? (
+                {verificationMethod !== 'wifi' ? (
                   <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-base sm:text-sm font-extrabold text-slate-900">Location</div>
@@ -364,7 +380,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                       type="button"
                       className="h-11 w-full justify-center text-base sm:text-sm"
                       onClick={() => {
-                        if (verificationMode === 'auto') setMode('location')
+                        if (verificationMethod === null) setMethod('location')
                         void refreshLocation()
                       }}
                       disabled={busyGeo}
@@ -373,12 +389,12 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                       {busyGeo ? 'Verifying…' : 'Verify location'}
                     </SecondaryButton>
                   </div>
-                  {verificationMode === 'location' ? (
+                  {verificationMethod === 'location' ? (
                     <div className="mt-2 text-center">
                       <button
                         type="button"
                         className={`${ui.focusRing} text-sm sm:text-xs font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
-                        onClick={() => setMode('wifi')}
+                        onClick={() => setMethod('wifi')}
                       >
                         Use Wi‑Fi instead
                       </button>
