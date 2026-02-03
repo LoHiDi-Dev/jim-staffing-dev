@@ -272,17 +272,7 @@ export function ClockStationPage({ user }: { user: ServerUser }) {
                       : 'Not verified'}
                   </Badge>
                 </div>
-                {verificationMode !== 'auto' && !wifiOk ? (
-                  <div className="mt-1 text-right">
-                    <button
-                      type="button"
-                      className={`${ui.focusRing} text-sm sm:text-xs font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
-                      onClick={() => setMode('auto')}
-                    >
-                      Show both
-                    </button>
-                  </div>
-                ) : null}
+                {/* Intentionally single-method UX (no toggle link). */}
               </CardHeader>
               <CardBody className="px-4 py-4 space-y-4">
                 {/* Wi‑Fi allowlist status */}
