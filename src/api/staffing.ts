@@ -1,7 +1,7 @@
 import { apiFetch, apiFetchBlob } from './http'
 
 export type StaffingAgency = 'PROLOGISTIX' | 'STAFF_FORCE'
-export type StaffingEmploymentType = 'LTC' | 'STC'
+export type StaffingEmploymentType = 'FTE' | 'LTC' | 'STC' | 'AAA'
 
 export type StaffingMe = {
   eligible: boolean

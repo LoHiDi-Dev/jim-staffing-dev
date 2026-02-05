@@ -9,9 +9,10 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/index.js",
+    "start": "prisma migrate deploy && prisma db seed && node dist/index.js",
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "test": "vitest run -c vitest.config.ts"
   },

@@ -80,8 +80,10 @@ model Session {
 }
 
 enum StaffingEmploymentType {
+  FTE
   LTC
   STC
+  AAA
 }
 
 enum StaffingAgency {

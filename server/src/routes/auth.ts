@@ -110,6 +110,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         name: user.name,
         siteId: membership.siteId,
         role: membership.role,
+        employmentType: profile?.employmentType ?? null,
         sites: memberships.map((m) => ({ id: m.siteId, name: m.site.name, role: m.role })),
       },
     }
@@ -160,6 +161,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         name: user.name,
         siteId: membership.siteId,
         role: membership.role,
+        employmentType: profile?.employmentType ?? null,
         sites: memberships.map((m) => ({ id: m.siteId, name: m.site.name, role: m.role })),
       },
     }
@@ -281,6 +283,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const ctx = await app.requireSiteRole(req)
     const user = await prisma.user.findUnique({ where: { id: ctx.userId } })
     if (!user) throw app.httpErrors.unauthorized('Invalid token.')
+    const profile = await prisma.staffingContractorProfile.findUnique({ where: { userId: user.id } })
     return {
       user: {
         id: user.id,
@@ -288,6 +291,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         name: user.name,
         siteId: ctx.siteId,
         role: ctx.role,
+        employmentType: profile?.employmentType ?? null,
       },
     }
   })
