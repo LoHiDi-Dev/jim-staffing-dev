@@ -272,7 +272,12 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    const eligible = profile.isActive && (profile.employmentType === 'LTC' || profile.employmentType === 'STC')
+    const eligible =
+      profile.isActive &&
+      (profile.employmentType === 'LTC' ||
+        profile.employmentType === 'STC' ||
+        profile.employmentType === 'FTE' ||
+        profile.employmentType === 'AAA')
     return {
       eligible: Boolean(eligible),
       employmentType: profile.employmentType,
@@ -315,7 +320,15 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
 
     const profile = await prisma.staffingContractorProfile.findUnique({ where: { userId: ctx.userId } })
     if (!profile) throw app.httpErrors.forbidden('Not authorized for JIM Staffing.')
-    if (!(profile.isActive && (profile.employmentType === 'LTC' || profile.employmentType === 'STC'))) {
+    if (
+      !(
+        profile.isActive &&
+        (profile.employmentType === 'LTC' ||
+          profile.employmentType === 'STC' ||
+          profile.employmentType === 'FTE' ||
+          profile.employmentType === 'AAA')
+      )
+    ) {
       throw app.httpErrors.forbidden('Not authorized for JIM Staffing.')
     }
 
@@ -365,7 +378,15 @@ export const staffingRoutes: FastifyPluginAsync = async (app) => {
 
     const profile = await prisma.staffingContractorProfile.findUnique({ where: { userId: ctx.userId } })
     if (!profile) throw app.httpErrors.forbidden('Not authorized for JIM Staffing.')
-    if (!(profile.isActive && (profile.employmentType === 'LTC' || profile.employmentType === 'STC'))) {
+    if (
+      !(
+        profile.isActive &&
+        (profile.employmentType === 'LTC' ||
+          profile.employmentType === 'STC' ||
+          profile.employmentType === 'FTE' ||
+          profile.employmentType === 'AAA')
+      )
+    ) {
       throw app.httpErrors.forbidden('Not authorized for JIM Staffing.')
     }
 
