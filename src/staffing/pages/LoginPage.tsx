@@ -178,7 +178,7 @@ export function LoginPage({ onAuthed }: { onAuthed: (u: ServerUser) => void }) {
                 tone="warn"
                 icon={AlertCircle}
                 title="Session Locked"
-                description="For security, your session was locked due to inactivity or the app going to the background. Please log in again to continue."
+                description="Your session was locked for security. Please log in again to continue."
               />
             ) : null}
             {apiNotConfigured ? (
