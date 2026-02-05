@@ -47,6 +47,8 @@ async function main() {
       siteIds: [hq.id, rca.id, fhpa.id, dtx.id],
       staffingEmploymentType: 'STC',
     },
+    // HQS user (shared identity across apps)
+    { name: 'Tyler Blackmore', userId: 'HQS-TB-0001', pin: '1234', role: 'ADMIN', siteIds: [hq.id], staffingEmploymentType: 'STC' },
     // DTX users
     { name: 'Test Test', userId: 'DTX-JP-8910', pin: '1234', role: 'OPERATOR', siteIds: [dtx.id], staffingEmploymentType: 'STC' },
     { name: 'Ryan Kelly', userId: 'DTX-RK-0042', pin: '1299', role: 'MANAGER', siteIds: [dtx.id], staffingEmploymentType: 'STC' },

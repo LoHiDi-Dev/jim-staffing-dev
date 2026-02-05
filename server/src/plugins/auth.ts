@@ -5,6 +5,7 @@ import cookie from '@fastify/cookie'
 import { z } from 'zod'
 import { prisma } from '../prisma.js'
 import type { AuthContext, AuthedUser } from '../types.js'
+import { isOriginAllowed, parseAllowedOrigins } from '../cors.js'
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
@@ -93,8 +94,8 @@ export const authPlugin: FastifyPluginAsync<{
     if (!origin) return
     // CORS already blocks browser calls; this protects refresh/logout from CSRF via same-site checks.
     const raw = z.string().min(1).parse(opts.corsOrigin ?? process.env.CORS_ORIGIN)
-    const allowedList = raw.split(',').map((s) => s.trim()).filter(Boolean)
-    if (!allowedList.includes(origin)) {
+    const allowedList = parseAllowedOrigins(raw)
+    if (!isOriginAllowed(origin, allowedList)) {
       throw app.httpErrors.forbidden('Invalid origin.')
     }
   })

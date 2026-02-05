@@ -4,6 +4,7 @@ import sensible from '@fastify/sensible'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
 import { loadEnv } from './env.js'
+import { isOriginAllowed, parseAllowedOrigins } from './cors.js'
 import { authPlugin } from './plugins/auth.js'
 import { healthRoutes } from './routes/health.js'
 import { authRoutes } from './routes/auth.js'
@@ -21,9 +22,12 @@ export function buildApp() {
 
   app.register(sensible)
 
-  const corsOrigins = env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
+  const corsOrigins = parseAllowedOrigins(env.CORS_ORIGIN)
   app.register(cors, {
-    origin: corsOrigins.length === 1 ? corsOrigins[0]! : corsOrigins,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true)
+      return cb(null, isOriginAllowed(origin, corsOrigins))
+    },
     credentials: true,
   })
 

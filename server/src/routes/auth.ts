@@ -45,7 +45,8 @@ function cookieOptions(isProd: boolean) {
   return {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'lax' as const,
+    // Must be `none` in production because Vercel (frontend) != Render (API) domains.
+    sameSite: (isProd ? ('none' as const) : ('lax' as const)),
     path: '/',
   }
 }
@@ -71,6 +72,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     const ok = await verifyPassword(body.password, user.passwordHash)
     if (!ok) throw app.httpErrors.unauthorized('Invalid email or password.')
+
+    // If a staffing profile exists, enforce active status.
+    const profile = await prisma.staffingContractorProfile.findUnique({ where: { userId: user.id } })
+    if (profile && !profile.isActive) throw app.httpErrors.forbidden('User inactive or blocked.')
 
     // Determine site + role: prefer requested site, else user's default, else first membership.
     const memberships = await prisma.userSite.findMany({ where: { userId: user.id }, include: { site: true } })
@@ -120,6 +125,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     const ok = await verifyPassword(body.password, user.passwordHash)
     if (!ok) throw app.httpErrors.unauthorized('Invalid name or PIN.')
+
+    const profile = await prisma.staffingContractorProfile.findUnique({ where: { userId: user.id } })
+    if (profile && !profile.isActive) throw app.httpErrors.forbidden('User inactive or blocked.')
 
     const memberships = await prisma.userSite.findMany({ where: { userId: user.id }, include: { site: true } })
     if (!memberships.length) throw app.httpErrors.forbidden('No site access configured for this user.')
