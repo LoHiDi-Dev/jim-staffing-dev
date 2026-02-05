@@ -23,7 +23,7 @@ export default defineConfig({
         'CORS_ORIGIN="http://localhost:5174" ' +
         'PORT=8787 ' +
         // Allow Test Test to punch off-site for test coverage.
-        'STAFFING_WIFI_ALLOWLIST_BYPASS_USER_IDS="dtx-jp-8910@jillamy.local"; ' +
+        'STAFFING_WIFI_ALLOWLIST_BYPASS_USER_IDS="dtx-tt-1234@jillamy.local"; ' +
         'npx prisma migrate deploy && npm run db:seed && npm run dev',
       port: 8787,
       reuseExistingServer: true,

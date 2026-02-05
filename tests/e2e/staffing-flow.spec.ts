@@ -21,7 +21,7 @@ test.describe('JIM Staffing E2E', () => {
       // Do NOT grant geolocation permission.
     })
     const page = await context.newPage()
-    await loginByUserId(page, { userId: 'DTX-JP-8910', pin: '1234', location: 'DTX' })
+    await loginByUserId(page, { userId: 'DTX-TT-1234', pin: '1234', location: 'DTX' })
 
     await page.waitForURL(/\/clock-station/)
     await expect(page.getByRole('tab', { name: /Clock Station/i })).toBeVisible()
@@ -59,7 +59,7 @@ test.describe('JIM Staffing E2E', () => {
   test('Clock in → clock out → signature required → submit signature → download weekly PDF (1 page)', async ({ browser }) => {
     const context = await browser.newContext()
     const page = await context.newPage()
-    await loginByUserId(page, { userId: 'DTX-JP-8910', pin: '1234', location: 'DTX' })
+    await loginByUserId(page, { userId: 'DTX-TT-1234', pin: '1234', location: 'DTX' })
     await page.waitForURL(/\/clock-station/)
 
     await page.getByRole('button', { name: /^Clock in$/i }).click()

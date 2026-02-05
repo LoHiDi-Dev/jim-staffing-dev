@@ -49,8 +49,8 @@ async function main() {
     },
     // HQS user (shared identity across apps)
     { name: 'Tyler Blackmore', userId: 'HQS-TB-0001', pin: '1234', role: 'ADMIN', siteIds: [hq.id], staffingEmploymentType: 'STC' },
-    // DTX users — Test Test: STC; Joel Premier: AAA (see above)
-    { name: 'Test Test', userId: 'DTX-JP-8910', pin: '1234', role: 'OPERATOR', siteIds: [dtx.id], staffingEmploymentType: 'STC' },
+    // Test user — global admin for cross-site testing
+    { name: 'Test Test', userId: 'DTX-TT-1234', pin: '1234', role: 'ADMIN', siteIds: [hq.id, rca.id, fhpa.id, dtx.id], staffingEmploymentType: 'AAA' },
     { name: 'Ryan Kelly', userId: 'DTX-RK-0042', pin: '1299', role: 'MANAGER', siteIds: [dtx.id], staffingEmploymentType: 'STC' },
     { name: 'Cedric Ross', userId: 'DTX-CR-0043', pin: '4827', role: 'MANAGER', siteIds: [dtx.id], staffingEmploymentType: 'STC' },
     { name: 'Cathy Bramble', userId: 'DTX-CB-0044', pin: '9136', role: 'MANAGER', siteIds: [dtx.id], staffingEmploymentType: 'STC' },

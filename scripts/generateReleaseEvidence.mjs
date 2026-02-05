@@ -170,7 +170,7 @@ async function main() {
     {
       title: 'normal',
       employeeName: 'Test Test',
-      userId: 'DTX-JP-8910',
+      userId: 'DTX-TT-1234',
       siteLabel: 'DTX',
       pdfName: 'weekly-normal.pdf',
       pngName: 'weekly-normal.png',
