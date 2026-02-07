@@ -13,10 +13,6 @@ import { BrandMark } from '../../../components/BrandMark'
 import {
   AUTH_LOCATIONS,
   AUTH_STORAGE_KEYS,
-  loadLastLocation,
-  loadLoginPreference,
-  saveLastLocation,
-  saveLoginPreference,
   type AuthLocationCode,
   type AuthLoginPreference,
 } from './authKeys'
@@ -41,9 +37,16 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
   const wasLocked = new URLSearchParams(loc.search).get('locked') === '1'
   const apiNotConfigured = !API_BASE_URL
 
+  type SetupPrefill = {
+    method: AuthLoginPreference
+    locationCode: AuthLocationCode
+    fullName?: string
+    userId?: string
+  }
+
   const [sharedDevice, setSharedDevice] = useState(false)
-  const [pref, setPref] = useState<AuthLoginPreference | null>(() => loadLoginPreference())
-  const [locationCode, setLocationCode] = useState<AuthLocationCode>(() => loadLastLocation() ?? 'DTX')
+  const [pref, setPref] = useState<AuthLoginPreference | null>(null)
+  const [locationCode, setLocationCode] = useState<AuthLocationCode | null>(null)
   const [locationOpen, setLocationOpen] = useState(false)
 
   // Identity fields
@@ -56,36 +59,86 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
   const [formError, setFormError] = useState('')
 
   const pinRef = useRef<HTMLInputElement | null>(null)
+  const appliedPrefillRef = useRef(false)
+  const prevModeRef = useRef(mode)
 
+  // Rule: all users / new devices start at /login/setup. Redirect /login → /login/setup unless they came from setup (have setupPrefill).
   useEffect(() => {
-    // If no preference is stored, send the user through /login/setup once per device.
+    const setupPrefill = (loc.state as { setupPrefill?: SetupPrefill } | null)?.setupPrefill
     if (mode === 'newEmployee') return
-    if (!pref) nav('/login/setup', { replace: true })
-  }, [mode, nav, pref])
 
-  const effectivePref: AuthLoginPreference = mode === 'newEmployee' ? 'USER_ID' : (pref ?? 'USER_ID')
-  const selectedLocation = AUTH_LOCATIONS.find((l) => l.code === locationCode) ?? AUTH_LOCATIONS[1]!
+    if (setupPrefill && !appliedPrefillRef.current) {
+      appliedPrefillRef.current = true
+      setPref(setupPrefill.method)
+      setLocationCode(setupPrefill.locationCode)
+      if (setupPrefill.method === 'USER_ID') setUserId(setupPrefill.userId ?? '')
+      else setFullName(setupPrefill.fullName ?? '')
+      setPin('')
+      setFormError('')
+      // Clear navigation state after prefill is applied (prevents persistence on refresh/back).
+      nav(loc.pathname + loc.search, { replace: true, state: {} })
+      return
+    }
+
+    if (!setupPrefill && !appliedPrefillRef.current) {
+      nav('/login/setup', { replace: true })
+    }
+  }, [loc.pathname, loc.search, loc.state, mode, nav])
+
+  // When switching from new employee → current employee, clear all selections.
+  useEffect(() => {
+    const prev = prevModeRef.current
+    prevModeRef.current = mode
+    if (prev === 'newEmployee' && mode === 'normal') {
+      setLocationCode(null)
+      setLocationOpen(false)
+      setPref(null)
+      setFullName('')
+      setUserId('')
+      setPin('')
+      setFormError('')
+      appliedPrefillRef.current = false
+    }
+  }, [mode])
+
+  // When landing on /login?mode=newEmployee (from any page), clear all selections so the new user makes their own choices.
+  useEffect(() => {
+    if (mode !== 'newEmployee') return
+    setLocationCode(null)
+    setLocationOpen(false)
+    setPref(null)
+    setFullName('')
+    setUserId('')
+    setPin('')
+    setFormError('')
+    appliedPrefillRef.current = false
+  }, [mode])
+
+  const effectivePref: AuthLoginPreference | null = mode === 'newEmployee' ? 'USER_ID' : pref
+  const selectedLocation = locationCode != null ? AUTH_LOCATIONS.find((l) => l.code === locationCode) ?? null : null
 
   const setPreference = (next: AuthLoginPreference) => {
     setPref(next)
-    // Default to local storage unless the user explicitly chose shared device.
-    saveLoginPreference(next, sharedDevice ? 'session' : 'local')
   }
 
   const setLocation = (next: AuthLocationCode) => {
     setLocationCode(next)
-    saveLastLocation(next, sharedDevice ? 'session' : 'local')
     setLocationOpen(false)
   }
 
-  const identityOk = effectivePref === 'FULL_NAME' ? Boolean(fullName.trim()) : Boolean(userId.trim())
+  const identityOk =
+    effectivePref === 'FULL_NAME'
+      ? Boolean(fullName.trim())
+      : effectivePref === 'USER_ID'
+        ? Boolean(userId.trim())
+        : false
   const pinOk = pin.trim().length === 4
-  const canSubmit = Boolean(identityOk && pinOk && !busy && !apiNotConfigured)
+  const canSubmit = Boolean(locationCode != null && identityOk && pinOk && !busy && !apiNotConfigured)
 
   const submitLabel = mode === 'newEmployee' ? 'Continue' : 'Log In'
 
   const doSubmit = () => {
-    if (!canSubmit) return
+    if (!canSubmit || !effectivePref || !selectedLocation) return
     void (async () => {
       setFormError('')
       setBusy(true)
@@ -177,7 +230,7 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
                 </button>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900">
-                {selectedLocation.label}
+                {selectedLocation?.label ?? 'Select work location'}
               </div>
               {locationOpen ? (
                 <SelectTileGroup
@@ -194,7 +247,9 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
             </div>
 
             {/* Identity + switch link */}
-            {effectivePref === 'USER_ID' ? (
+            {effectivePref == null ? (
+              <AlertBanner tone="info" title="Complete first-time setup to choose your sign-in method." />
+            ) : effectivePref === 'USER_ID' ? (
               <div className="space-y-2">
                 <div className="text-sm font-semibold text-slate-900">User ID</div>
                 <TextInput value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Enter your user ID" />
@@ -252,10 +307,6 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
                 onChange={(e) => {
                   const next = e.target.checked
                   setSharedDevice(next)
-                  // Move preference/location to the correct storage.
-                  const storage = next ? 'session' : 'local'
-                  if (pref) saveLoginPreference(pref, storage)
-                  saveLastLocation(locationCode, storage)
                 }}
                 aria-label="This is a shared device"
               />
@@ -274,17 +325,31 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
               {busy ? 'Signing in…' : submitLabel}
             </PrimaryButton>
 
-            <div className="pt-2 text-center text-sm text-slate-600">
+            <div className="border-t border-slate-200 pt-4 text-center text-sm text-slate-600">
               <div className="font-semibold text-slate-500">Switch user</div>
-              <div className="mt-2">
-                <button
-                  type="button"
-                  className={`${ui.focusRing} text-sm font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
-                  onClick={() => nav('/login?mode=newEmployee', { replace: true })}
-                >
-                  First time here? Get started
-                </button>
-              </div>
+              {mode !== 'newEmployee' ? (
+                <div className="mt-2 text-sm">
+                  New employee?{' '}
+                  <button
+                    type="button"
+                    className={`${ui.focusRing} font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
+                    onClick={() => nav('/login?mode=newEmployee', { replace: true, state: {} })}
+                  >
+                    Get started
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-2 text-sm">
+                  Current employee?{' '}
+                  <button
+                    type="button"
+                    className={`${ui.focusRing} font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}
+                    onClick={() => nav('/login', { replace: true, state: {} })}
+                  >
+                    Log in
+                  </button>
+                </div>
+              )}
               <div className="mt-3 text-sm">
                 Forgot your PIN?{' '}
                 <button type="button" className={`${ui.focusRing} font-semibold text-[color:var(--brand-primary)] underline underline-offset-4`}>
@@ -293,8 +358,12 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
               </div>
             </div>
 
-            <div className="pt-2 text-center text-[11px] leading-5 text-slate-500">
-              Access is managed by the administrator. Only authorized users may access JIM. If you don’t have credentials, please request access.
+            <div className="border-t border-slate-200 pt-4 text-center text-[11px] leading-5 text-slate-500">
+              Access is managed by the administrator.
+              <br />
+              Only authorized users may access JIM.
+              <br />
+              If you don't have credentials, please request access.
             </div>
           </div>
         </div>
