@@ -170,7 +170,11 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
         nav('/clock-station', { replace: true })
       } catch (e) {
         const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message?: unknown }).message) : 'Login failed.'
-        setFormError(msg)
+        if (mode === 'newEmployee' && msg === 'Invalid email or password.') {
+          setFormError('Invalid user id and PIN')
+        } else {
+          setFormError(msg)
+        }
       } finally {
         setBusy(false)
       }
