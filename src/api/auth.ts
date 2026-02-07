@@ -1,6 +1,7 @@
 import { apiFetch } from './http'
 import { restoreAccessToken, setAccessToken } from './token'
 import { setCurrentSiteId } from './config'
+import type { StaffingEmploymentType } from './staffing'
 
 export type ServerSiteRole = 'ADMIN' | 'MANAGER' | 'OPERATOR' | 'REGIONAL_MANAGER'
 
@@ -11,6 +12,10 @@ export type ServerUser = {
   siteId: string
   role: ServerSiteRole
   sites?: Array<{ id: string; name: string; role: ServerSiteRole }>
+  employmentType?: StaffingEmploymentType | null
+  requiresProfileCompletion?: boolean
+  profileComplete?: boolean
+  isProvisionedNewUser?: boolean
 }
 
 export async function apiHealth(): Promise<boolean> {
@@ -79,6 +84,13 @@ export async function apiLogout(): Promise<void> {
   } finally {
     setAccessToken(null)
   }
+}
+
+export async function apiCompleteProfile(args: { firstName: string; lastName: string }): Promise<{
+  ok: boolean
+  user: Pick<ServerUser, 'id' | 'email' | 'name' | 'requiresProfileCompletion' | 'profileComplete' | 'isProvisionedNewUser'>
+}> {
+  return await apiFetch('/auth/profile', { method: 'POST', body: args })
 }
 
 export async function apiMe(): Promise<ServerUser | null> {

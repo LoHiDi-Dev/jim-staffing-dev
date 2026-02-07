@@ -6,9 +6,12 @@ import { setAccessToken } from '../api/token'
 import { Footer } from '../components/Footer'
 import { StaffingShell } from './components/StaffingShell'
 import { ClockStationPage } from './pages/ClockStationPage'
-import { LoginPage } from './pages/LoginPage'
 import { MyTimesPage } from './pages/MyTimesPage'
 import { NotAuthorizedPage } from './pages/NotAuthorizedPage'
+import { MarketingLandingPage } from './pages/auth/MarketingLandingPage'
+import { LoginSetupPage } from './pages/auth/LoginSetupPage'
+import { LoginPageV2 } from './pages/auth/LoginPageV2'
+import { CompleteProfilePage } from './pages/auth/CompleteProfilePage'
 
 type AuthStatus = 'loading' | 'authed' | 'anon'
 
@@ -25,7 +28,14 @@ export function StaffingApp() {
     setUser(null)
     setAuthStatus('anon')
     setEligible(null)
-    nav('/login', { replace: true })
+    try {
+      sessionStorage.removeItem('jim.auth.loginPreference')
+      sessionStorage.removeItem('jim.auth.lastLocation')
+      sessionStorage.removeItem('jim.auth.provisionedUserId')
+    } catch {
+      // ignore
+    }
+    nav('/', { replace: true })
   }, [nav])
 
   const handleLock = useCallback(() => {
@@ -33,6 +43,9 @@ export function StaffingApp() {
     setAccessToken(null)
     try {
       sessionStorage.removeItem('jim.staffing.punchToken')
+      sessionStorage.removeItem('jim.auth.loginPreference')
+      sessionStorage.removeItem('jim.auth.lastLocation')
+      sessionStorage.removeItem('jim.auth.provisionedUserId')
     } catch {
       // ignore
     }
@@ -122,7 +135,13 @@ export function StaffingApp() {
     [handleLogout, user],
   )
 
-  const mustLogin = authStatus === 'anon' && loc.pathname !== '/login'
+  // Protected routes guard (dashboard only). Public: /, /login/setup, /login, /login/profile
+  const isPublic =
+    loc.pathname === '/' ||
+    loc.pathname === '/login' ||
+    loc.pathname === '/login/setup' ||
+    loc.pathname === '/login/profile'
+  const mustLogin = authStatus === 'anon' && !isPublic
   if (mustLogin) return <Navigate to="/login" replace />
 
   // Render /login immediately even while checking session (avoids slow/cold-start blocking screen).
@@ -148,16 +167,27 @@ export function StaffingApp() {
   return (
     <Routes>
       <Route
+        path="/"
+        element={authStatus === 'authed' ? <Navigate to="/clock-station" replace /> : <MarketingLandingPage />}
+      />
+      <Route
+        path="/login/setup"
+        element={<LoginSetupPage />}
+      />
+      <Route
         path="/login"
         element={
-          <LoginPage
+          <LoginPageV2
             onAuthed={(u) => {
               setUser(u)
               setAuthStatus('authed')
-              nav('/clock-station', { replace: true })
             }}
           />
         }
+      />
+      <Route
+        path="/login/profile"
+        element={authStatus === 'authed' ? <CompleteProfilePage /> : <Navigate to="/login" replace />}
       />
       <Route path="/not-authorized" element={<NotAuthorizedPage user={user} onLogout={() => void handleLogout()} />} />
 
@@ -188,8 +218,7 @@ export function StaffingApp() {
 
       <Route path="/my-times" element={<Navigate to="/my-timecard" replace />} />
 
-      <Route path="/" element={<Navigate to="/clock-station" replace />} />
-      <Route path="*" element={<Navigate to="/clock-station" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

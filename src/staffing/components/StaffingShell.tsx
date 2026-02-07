@@ -33,11 +33,11 @@ export function StaffingShell({ user, onLogout }: { user: ServerUser | null; onL
     if (!user) return ''
     const parts: string[] = []
     
-    // Map siteId to display code (DTX instead of site_dtx)
+    // Map siteId to canonical display label
     if (user.siteId) {
       const site = STAFFING_SITES.find((s) => s.siteId === user.siteId)
       if (site) {
-        parts.push(site.code)
+        parts.push(site.label)
       }
     }
     

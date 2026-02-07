@@ -8,8 +8,8 @@ export type StaffingSite = {
 }
 
 export const STAFFING_SITES: StaffingSite[] = [
-  { code: 'HQ', label: 'HQs', siteId: 'site_seed_main' },
-  { code: 'DTX', label: 'DTX', siteId: 'site_dtx' },
-  { code: 'RCA', label: 'RCA', siteId: 'site_rca' },
-  { code: 'FHPA', label: 'FHPA', siteId: 'site_phpa' },
+  { code: 'HQ', label: 'HQs — Headquarters', siteId: 'site_seed_main' },
+  { code: 'DTX', label: 'DTX — Dallas Warehouse', siteId: 'site_dtx' },
+  { code: 'RCA', label: 'RCA — Packaging & Warehouse', siteId: 'site_rca' },
+  { code: 'FHPA', label: 'FHPA — E-Commerce Fulfillment', siteId: 'site_phpa' },
 ]

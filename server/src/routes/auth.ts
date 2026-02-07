@@ -28,6 +28,11 @@ const RegisterBody = z.object({
   siteId: z.string().min(1),
 })
 
+const CompleteProfileBody = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+})
+
 const normalizeUserIdToEmail = (userId: string): string => {
   const norm = userId.trim().toLowerCase()
   if (!norm) return ''
@@ -39,6 +44,16 @@ const normalizeUserIdToEmail = (userId: string): string => {
   const m = /^([A-Z]{3})([A-Z]{2})(\d{4})$/.exec(key)
   const canonical = m ? `${m[1]}-${m[2]}-${m[3]}` : key
   return `${canonical.toLowerCase()}@jillamy.local`
+}
+
+function requiresProfileCompletionFromName(name: string): boolean {
+  const n = (name ?? '').trim()
+  if (!n) return true
+  // Provisioned/new accounts often have placeholder names like EMP001.
+  if (/^EMP\\d+$/i.test(n)) return true
+  // Treat single-token names as incomplete (expects "First Last").
+  if (!/\\s+/.test(n)) return true
+  return false
 }
 
 function cookieOptions(isProd: boolean) {
@@ -102,6 +117,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash } })
 
     reply.setCookie('jim_refresh', refreshToken, cookieOptions(isProd))
+    const requiresProfileCompletion = requiresProfileCompletionFromName(user.name)
     return {
       accessToken,
       user: {
@@ -111,6 +127,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         siteId: membership.siteId,
         role: membership.role,
         employmentType: profile?.employmentType ?? null,
+        requiresProfileCompletion,
+        profileComplete: !requiresProfileCompletion,
+        isProvisionedNewUser: requiresProfileCompletion,
         sites: memberships.map((m) => ({ id: m.siteId, name: m.site.name, role: m.role })),
       },
     }
@@ -153,6 +172,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash } })
 
     reply.setCookie('jim_refresh', refreshToken, cookieOptions(isProd))
+    const requiresProfileCompletion = requiresProfileCompletionFromName(user.name)
     return {
       accessToken,
       user: {
@@ -162,6 +182,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         siteId: membership.siteId,
         role: membership.role,
         employmentType: profile?.employmentType ?? null,
+        requiresProfileCompletion,
+        profileComplete: !requiresProfileCompletion,
+        isProvisionedNewUser: requiresProfileCompletion,
         sites: memberships.map((m) => ({ id: m.siteId, name: m.site.name, role: m.role })),
       },
     }
@@ -214,6 +237,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     await prisma.session.update({ where: { id: session.id }, data: { refreshTokenHash } })
 
     reply.setCookie('jim_refresh', refreshToken, cookieOptions(isProd))
+    const requiresProfileCompletion = requiresProfileCompletionFromName(created.name)
     return {
       accessToken,
       user: {
@@ -222,7 +246,34 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         name: created.name,
         siteId: membership.siteId,
         role: membership.role,
+        requiresProfileCompletion,
+        profileComplete: !requiresProfileCompletion,
+        isProvisionedNewUser: requiresProfileCompletion,
         sites: memberships.map((m) => ({ id: m.siteId, name: m.site.name, role: m.role })),
+      },
+    }
+  })
+
+  // Complete profile for provisioned users (first login setup required).
+  app.post('/auth/profile', async (req) => {
+    const ctx = await app.requireAuth(req)
+    const body = CompleteProfileBody.parse(req.body)
+    const name = `${body.firstName.trim()} ${body.lastName.trim()}`.trim()
+    const updated = await prisma.user.update({
+      where: { id: ctx.userId },
+      data: { name },
+      select: { id: true, email: true, name: true },
+    })
+    const requiresProfileCompletion = requiresProfileCompletionFromName(updated.name)
+    return {
+      ok: true,
+      user: {
+        id: updated.id,
+        email: updated.email,
+        name: updated.name,
+        requiresProfileCompletion,
+        profileComplete: !requiresProfileCompletion,
+        isProvisionedNewUser: requiresProfileCompletion,
       },
     }
   })
@@ -284,6 +335,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const user = await prisma.user.findUnique({ where: { id: ctx.userId } })
     if (!user) throw app.httpErrors.unauthorized('Invalid token.')
     const profile = await prisma.staffingContractorProfile.findUnique({ where: { userId: user.id } })
+    const requiresProfileCompletion = requiresProfileCompletionFromName(user.name)
     return {
       user: {
         id: user.id,
@@ -292,6 +344,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         siteId: ctx.siteId,
         role: ctx.role,
         employmentType: profile?.employmentType ?? null,
+        requiresProfileCompletion,
+        profileComplete: !requiresProfileCompletion,
+        isProvisionedNewUser: requiresProfileCompletion,
       },
     }
   })
