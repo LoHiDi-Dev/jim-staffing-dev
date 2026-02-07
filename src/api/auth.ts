@@ -93,6 +93,10 @@ export async function apiCompleteProfile(args: { firstName: string; lastName: st
   return await apiFetch('/auth/profile', { method: 'POST', body: args })
 }
 
+export async function apiChangePin(args: { newPin: string }): Promise<{ ok: boolean }> {
+  return await apiFetch('/auth/pin', { method: 'POST', body: args })
+}
+
 export async function apiMe(): Promise<ServerUser | null> {
   try {
     const res = await apiFetch<{ user: ServerUser }>('/auth/me')

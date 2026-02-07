@@ -1,9 +1,10 @@
-import { ArrowLeft, AlertCircle } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { apiCompleteProfile } from '../../../api/auth'
+import { apiChangePin, apiCompleteProfile } from '../../../api/auth'
 import { AlertBanner } from '../../../components/ui/AlertBanner'
 import { PrimaryButton } from '../../../components/ui/Button'
+import { Checkbox } from '../../../components/ui/Controls'
 import { TextInput } from '../../../components/ui/Fields'
 import { BrandMark } from '../../../components/BrandMark'
 import { ui } from '../../../components/ui/tokens'
@@ -23,10 +24,17 @@ export function CompleteProfilePage() {
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [changePin, setChangePin] = useState(false)
+  const [newPin, setNewPin] = useState('')
+  const [repeatPin, setRepeatPin] = useState('')
+  const [revealNewPin, setRevealNewPin] = useState(false)
+  const [revealRepeatPin, setRevealRepeatPin] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  const canContinue = Boolean(firstName.trim() && lastName.trim())
+  const nameOk = Boolean(firstName.trim() && lastName.trim())
+  const pinOk = !changePin ? true : /^\d{4}$/.test(newPin.trim()) && newPin.trim() === repeatPin.trim()
+  const canContinue = Boolean(nameOk && pinOk)
 
   return (
       <div className="min-h-screen bg-[#f4f6fb]">
@@ -80,6 +88,57 @@ export function CompleteProfilePage() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-slate-900">PIN options</div>
+                <label className="flex items-center gap-3">
+                  <Checkbox checked={changePin} onChange={(e) => setChangePin(e.target.checked)} aria-label="Change my PIN" />
+                  <span className="text-sm text-slate-700">Change my PIN</span>
+                </label>
+              </div>
+
+              {changePin ? (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="text-sm font-semibold text-slate-900">New PIN</div>
+                    <div className="relative">
+                      <TextInput
+                        value={newPin}
+                        onChange={(e) => setNewPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                        placeholder="Enter your 4-digit PIN"
+                        type={revealNewPin ? 'text' : 'password'}
+                      />
+                      <button
+                        type="button"
+                        className={`${ui.focusRing} absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-500 hover:text-slate-900`}
+                        onClick={() => setRevealNewPin((v) => !v)}
+                        aria-label={revealNewPin ? 'Hide PIN' : 'Show PIN'}
+                      >
+                        {revealNewPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-semibold text-slate-900">Repeat PIN</div>
+                    <div className="relative">
+                      <TextInput
+                        value={repeatPin}
+                        onChange={(e) => setRepeatPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4))}
+                        placeholder="Repeat new 4-digit PIN"
+                        type={revealRepeatPin ? 'text' : 'password'}
+                      />
+                      <button
+                        type="button"
+                        className={`${ui.focusRing} absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-500 hover:text-slate-900`}
+                        onClick={() => setRevealRepeatPin((v) => !v)}
+                        aria-label={revealRepeatPin ? 'Hide PIN' : 'Show PIN'}
+                      >
+                        {revealRepeatPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               <PrimaryButton
                 type="button"
                 className="h-12 w-full justify-center text-base"
@@ -90,7 +149,16 @@ export function CompleteProfilePage() {
                     setErr('')
                     setBusy(true)
                     try {
-                      const res = await apiCompleteProfile({ firstName, lastName })
+                      if (changePin) {
+                        const np = newPin.trim()
+                        const rp = repeatPin.trim()
+                        if (!/^\d{4}$/.test(np)) throw new Error('New PIN must be exactly 4 digits.')
+                        if (np !== rp) throw new Error('PINs do not match.')
+                        const pinRes = await apiChangePin({ newPin: np })
+                        if (!pinRes.ok) throw new Error('PIN change failed.')
+                      }
+
+                      const res = await apiCompleteProfile({ firstName: firstName.trim(), lastName: lastName.trim() })
                       if (!res.ok) throw new Error('Profile update failed.')
                       // After profile completion, return to setup to choose login method preference.
                       nav('/login/setup?force=1&next=dashboard', { replace: true })
