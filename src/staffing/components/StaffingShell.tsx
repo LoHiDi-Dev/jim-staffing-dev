@@ -33,18 +33,18 @@ export function StaffingShell({ user, onLogout }: { user: ServerUser | null; onL
     if (!user) return ''
     const parts: string[] = []
     
-    // Map siteId to canonical display label
+    // Map siteId to canonical display label (code only)
     if (user.siteId) {
       const site = STAFFING_SITES.find((s) => s.siteId === user.siteId)
       if (site) {
-        parts.push(site.label)
+        parts.push(site.code)
       }
     }
     
     // Add role
     if (user.role) {
       const roleMap: Record<string, string> = {
-        ADMIN: 'Admin',
+        ADMIN: 'Administrator',
         MANAGER: 'Manager',
         OPERATOR: 'Operator',
         REGIONAL_MANAGER: 'Regional Manager',
