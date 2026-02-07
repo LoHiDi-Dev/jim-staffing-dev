@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://jim:jim@localhost:5432/jim?schema=public'
+// Use an isolated schema for Playwright to avoid interference with local dev DB state.
+// Also make it unique per run to avoid getting stuck on a previously failed migration.
+const PLAYWRIGHT_SCHEMA = process.env.PLAYWRIGHT_DB_SCHEMA ?? `playwright_e2e_${Date.now()}`
+const DATABASE_URL = process.env.DATABASE_URL ?? `postgresql://jim:jim@localhost:5432/jim?schema=${PLAYWRIGHT_SCHEMA}`
 const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET ?? 'change-me-change-me-change-me'
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET ?? 'change-me-change-me-change-me'
 
@@ -24,7 +27,7 @@ export default defineConfig({
         'PORT=8787 ' +
         // Allow Test Test to punch off-site for test coverage.
         'STAFFING_WIFI_ALLOWLIST_BYPASS_USER_IDS="dtx-tt-1234@jillamy.local"; ' +
-        'npx prisma migrate deploy && npm run db:seed && npm run dev',
+        'npx prisma migrate deploy && npx prisma generate && npm run db:seed && npm run dev',
       port: 8787,
       reuseExistingServer: true,
       timeout: 180_000,

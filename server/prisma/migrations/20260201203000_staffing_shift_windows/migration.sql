@@ -8,7 +8,7 @@ BEGIN
     FROM pg_type t
     JOIN pg_namespace n ON n.oid = t.typnamespace
     WHERE t.typname = 'StaffingShiftType'
-      AND n.nspname = 'public'
+      AND n.nspname = current_schema()
   ) THEN
     CREATE TYPE "StaffingShiftType" AS ENUM ('DAY', 'NIGHT');
   END IF;

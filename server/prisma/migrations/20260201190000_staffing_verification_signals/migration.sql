@@ -8,7 +8,7 @@ BEGIN
     FROM pg_type t
     JOIN pg_namespace n ON n.oid = t.typnamespace
     WHERE t.typname = 'StaffingVerificationMethod'
-      AND n.nspname = 'public'
+      AND n.nspname = current_schema()
   ) THEN
     CREATE TYPE "StaffingVerificationMethod" AS ENUM ('wifi', 'location', 'both', 'none');
   END IF;

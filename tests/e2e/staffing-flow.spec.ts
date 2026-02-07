@@ -2,17 +2,16 @@ import { test, expect, type Page } from '@playwright/test'
 import { PDFDocument } from 'pdf-lib'
 
 async function loginByUserId(page: Page, args: { userId: string; pin: string; location?: 'DTX' | 'HQ' | 'RCA' | 'FHPA' }) {
-  await page.goto('/login')
-  await page.getByRole('radio', { name: 'Returning User' }).click()
+  // New auth flow: setup -> login
+  await page.goto('/login/setup?force=1')
   await page.getByRole('radio', { name: args.location ?? 'DTX' }).click()
   await page.getByRole('radio', { name: 'User ID' }).click()
-  await page.getByPlaceholder('Enter your User ID').fill(args.userId)
-  // PIN boxes have aria-labels "PIN digit X"
-  const digits = args.pin.split('')
-  for (let i = 0; i < 4; i++) {
-    await page.getByLabel(`PIN digit ${i + 1}`).fill(digits[i]!)
-  }
-  await page.getByRole('button', { name: /sign in/i }).click()
+  await page.getByPlaceholder(/Enter your user ID/i).fill(args.userId)
+  await page.getByRole('button', { name: 'Continue' }).click()
+
+  await page.getByPlaceholder(/Enter your user ID/i).fill(args.userId)
+  await page.getByPlaceholder(/Enter 4-digit PIN/i).fill(args.pin)
+  await page.getByRole('button', { name: /sign in|log in/i }).click()
 }
 
 test.describe('JIM Staffing E2E', () => {
@@ -41,7 +40,15 @@ test.describe('JIM Staffing E2E', () => {
 
     await page.waitForURL(/\/clock-station/)
     // Trigger location check (requires user action).
-    await page.getByRole('button', { name: /verify location/i }).click()
+    // This button can render briefly and be replaced by a "verified" state, so keep this step tolerant.
+    const verify = page.getByRole('button', { name: /verify location/i })
+    if (await verify.count()) {
+      try {
+        await verify.click({ timeout: 5000 })
+      } catch {
+        // ignore flake if state changes during click
+      }
+    }
     const clockIn = page.getByRole('button', { name: /^Clock in$/i })
     await expect(clockIn).toBeEnabled()
   })

@@ -186,8 +186,9 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
           // ignore
         }
 
-        const requiresProfile = Boolean((u as unknown as { requiresProfileCompletion?: boolean }).requiresProfileCompletion)
-        if (mode === 'newEmployee' || requiresProfile) {
+        // Only new-employee flow should route into profile completion.
+        // Existing users should go straight to the app after successful login.
+        if (mode === 'newEmployee') {
           try {
             sessionStorage.setItem(AUTH_STORAGE_KEYS.provisionedUserId, (effectivePref === 'USER_ID' ? userId.trim() : '').trim())
           } catch {

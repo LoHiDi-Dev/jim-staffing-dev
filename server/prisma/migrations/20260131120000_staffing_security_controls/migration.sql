@@ -55,7 +55,14 @@ END $$;
 -- Create enum for Wi‑Fi allowlist
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'StaffingWifiAllowlistStatus') THEN
+  -- Note: pg_type.typname is not unique across schemas. Ensure we create the enum in the current schema
+  -- (Prisma uses `?schema=...` for isolated environments like Playwright).
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE t.typname = 'StaffingWifiAllowlistStatus' AND n.nspname = current_schema()
+  ) THEN
     CREATE TYPE "StaffingWifiAllowlistStatus" AS ENUM ('PASS', 'FAIL', 'DEV_BYPASS');
   END IF;
 END $$;
