@@ -1,21 +1,44 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AlertBanner } from '../../../components/ui/AlertBanner'
 import { PrimaryButton, SecondaryButton } from '../../../components/ui/Button'
+import { Checkbox } from '../../../components/ui/Controls'
 import { SelectTileGroup } from '../../../components/ui/SelectTileGroup'
 import { TextInput } from '../../../components/ui/Fields'
 import { BrandMark } from '../../../components/BrandMark'
 import { ui } from '../../../components/ui/tokens'
 import { AUTH_LOCATIONS, AUTH_STORAGE_KEYS, type AuthLocationCode, type AuthLoginPreference } from './authKeys'
+import {
+  getDeviceIsSharedDevice,
+  getDeviceLastLocation,
+  getDeviceLoginPreference,
+  setDeviceIsSharedDevice,
+  setDeviceLastLocation,
+  setDeviceLoginPreference,
+} from './loginPreferenceStorage'
 
 export function LoginSetupPage() {
   const nav = useNavigate()
+  const loc = useLocation()
+  const qs = useMemo(() => new URLSearchParams(loc.search), [loc.search])
+  const force = qs.get('force') === '1'
 
   const [method, setMethod] = useState<AuthLoginPreference | null>(null)
   const [locationCode, setLocationCode] = useState<AuthLocationCode | null>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [userId, setUserId] = useState('')
+  const [sharedDevice, setSharedDevice] = useState<boolean>(() => getDeviceIsSharedDevice())
+
+  useEffect(() => {
+    if (force) return
+    if (sharedDevice) return
+    const pref = getDeviceLoginPreference()
+    const lastLoc = getDeviceLastLocation()
+    if (!pref || !lastLoc) return
+    const setupPrefill = { method: pref, locationCode: lastLoc }
+    nav('/login', { replace: true, state: { setupPrefill } })
+  }, [force, nav, sharedDevice])
 
   const canContinue =
     locationCode !== null &&
@@ -111,6 +134,23 @@ export function LoginSetupPage() {
                 </div>
               ) : null}
 
+              <label className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-4">
+                <Checkbox
+                  className="mt-1"
+                  checked={sharedDevice}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                    setSharedDevice(next)
+                    setDeviceIsSharedDevice(next)
+                  }}
+                  aria-label="This is a shared device"
+                />
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">This is a shared device</div>
+                  <div className="text-sm text-slate-500">You'll be signed out automatically after inactivity.</div>
+                </div>
+              </label>
+
               <div className="pt-1 space-y-3">
                 <PrimaryButton
                   type="button"
@@ -124,6 +164,8 @@ export function LoginSetupPage() {
                     } catch {
                       // ignore
                     }
+                    setDeviceLastLocation(locationCode)
+                    setDeviceLoginPreference(method, sharedDevice)
                     const setupPrefill =
                       method === 'FULL_NAME'
                         ? { method: 'FULL_NAME' as const, fullName: `${firstName.trim()} ${lastName.trim()}`.trim(), userId: undefined, locationCode }

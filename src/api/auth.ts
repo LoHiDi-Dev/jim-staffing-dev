@@ -97,6 +97,13 @@ export async function apiChangePin(args: { newPin: string }): Promise<{ ok: bool
   return await apiFetch('/auth/pin', { method: 'POST', body: args })
 }
 
+export async function apiUpdateLoginPreference(args: { loginPreference: 'FULL_NAME' | 'USER_ID' }): Promise<{
+  ok: boolean
+  user: { id: string; loginPreference: 'FULL_NAME' | 'USER_ID' | null }
+}> {
+  return await apiFetch('/auth/login-preference', { method: 'POST', body: args })
+}
+
 export async function apiMe(): Promise<ServerUser | null> {
   try {
     const res = await apiFetch<{ user: ServerUser }>('/auth/me')

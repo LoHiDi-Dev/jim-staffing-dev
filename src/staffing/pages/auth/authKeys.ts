@@ -5,6 +5,7 @@ export type AuthLocationCode = 'HQs' | 'DTX' | 'RCA' | 'FHPA'
 export const AUTH_STORAGE_KEYS = {
   loginPreference: 'jim.auth.loginPreference',
   lastLocation: 'jim.auth.lastLocation',
+  isSharedDevice: 'jim.auth.isSharedDevice',
   provisionedUserId: 'jim.auth.provisionedUserId',
 } as const
 
@@ -55,6 +56,47 @@ export function saveLastLocation(loc: AuthLocationCode, storage: 'local' | 'sess
     const st = storage === 'session' ? sessionStorage : localStorage
     st.setItem(AUTH_STORAGE_KEYS.lastLocation, loc)
     if (storage === 'session') {
+      localStorage.removeItem(AUTH_STORAGE_KEYS.lastLocation)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function loadIsSharedDevice(): boolean {
+  try {
+    const v =
+      sessionStorage.getItem(AUTH_STORAGE_KEYS.isSharedDevice) ??
+      localStorage.getItem(AUTH_STORAGE_KEYS.isSharedDevice)
+    return v === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function saveIsSharedDevice(shared: boolean, storage: 'local' | 'session') {
+  try {
+    const st = storage === 'session' ? sessionStorage : localStorage
+    st.setItem(AUTH_STORAGE_KEYS.isSharedDevice, shared ? 'true' : 'false')
+    if (storage === 'session') {
+      // Ensure it doesn't persist on shared devices.
+      localStorage.removeItem(AUTH_STORAGE_KEYS.isSharedDevice)
+    } else {
+      sessionStorage.removeItem(AUTH_STORAGE_KEYS.isSharedDevice)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function clearDeviceAuthPreference(opts?: { keepLastLocation?: boolean }) {
+  try {
+    sessionStorage.removeItem(AUTH_STORAGE_KEYS.loginPreference)
+    localStorage.removeItem(AUTH_STORAGE_KEYS.loginPreference)
+    sessionStorage.removeItem(AUTH_STORAGE_KEYS.isSharedDevice)
+    localStorage.removeItem(AUTH_STORAGE_KEYS.isSharedDevice)
+    if (!opts?.keepLastLocation) {
+      sessionStorage.removeItem(AUTH_STORAGE_KEYS.lastLocation)
       localStorage.removeItem(AUTH_STORAGE_KEYS.lastLocation)
     }
   } catch {

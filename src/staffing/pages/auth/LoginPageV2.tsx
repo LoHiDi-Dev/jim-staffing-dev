@@ -2,7 +2,7 @@ import { AlertCircle, Eye, EyeOff, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { API_BASE_URL } from '../../../api/config'
-import { apiLogin, apiLoginByName, type ServerUser } from '../../../api/auth'
+import { apiLogin, apiLoginByName, apiUpdateLoginPreference, type ServerUser } from '../../../api/auth'
 import { AlertBanner } from '../../../components/ui/AlertBanner'
 import { PrimaryButton } from '../../../components/ui/Button'
 import { Checkbox } from '../../../components/ui/Controls'
@@ -16,6 +16,14 @@ import {
   type AuthLocationCode,
   type AuthLoginPreference,
 } from './authKeys'
+import {
+  getDeviceIsSharedDevice,
+  getDeviceLastLocation,
+  getDeviceLoginPreference,
+  setDeviceIsSharedDevice,
+  setDeviceLastLocation,
+  setDeviceLoginPreference,
+} from './loginPreferenceStorage'
 
 function userIdToEmail(userId: string): string {
   const raw = userId.trim().toLowerCase()
@@ -44,7 +52,7 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
     userId?: string
   }
 
-  const [sharedDevice, setSharedDevice] = useState(false)
+  const [sharedDevice, setSharedDevice] = useState<boolean>(() => getDeviceIsSharedDevice())
   const [pref, setPref] = useState<AuthLoginPreference | null>(null)
   const [locationCode, setLocationCode] = useState<AuthLocationCode | null>(null)
   const [locationOpen, setLocationOpen] = useState(false)
@@ -81,6 +89,16 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
     }
 
     if (!setupPrefill && !appliedPrefillRef.current) {
+      const pref = getDeviceLoginPreference()
+      const lastLoc = getDeviceLastLocation()
+      const shared = getDeviceIsSharedDevice()
+      if (pref && lastLoc) {
+        appliedPrefillRef.current = true
+        setSharedDevice(shared)
+        setPref(pref)
+        setLocationCode(lastLoc)
+        return
+      }
       nav('/login/setup', { replace: true })
     }
   }, [loc.pathname, loc.search, loc.state, mode, nav])
@@ -119,11 +137,13 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
 
   const setPreference = (next: AuthLoginPreference) => {
     setPref(next)
+    if (mode !== 'newEmployee') setDeviceLoginPreference(next, sharedDevice)
   }
 
   const setLocation = (next: AuthLocationCode) => {
     setLocationCode(next)
     setLocationOpen(false)
+    setDeviceLastLocation(next)
   }
 
   const identityOk =
@@ -155,6 +175,16 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
         }
 
         onAuthed(u)
+
+        // Persist device-level preference and best-effort persist user-level preference (cross-device).
+        setDeviceIsSharedDevice(sharedDevice)
+        if (effectivePref) setDeviceLoginPreference(effectivePref, sharedDevice)
+        if (locationCode) setDeviceLastLocation(locationCode)
+        try {
+          if (effectivePref) await apiUpdateLoginPreference({ loginPreference: effectivePref })
+        } catch {
+          // ignore
+        }
 
         const requiresProfile = Boolean((u as unknown as { requiresProfileCompletion?: boolean }).requiresProfileCompletion)
         if (mode === 'newEmployee' || requiresProfile) {
@@ -311,6 +341,9 @@ export function LoginPageV2(props: { onAuthed: (u: ServerUser) => void }) {
                 onChange={(e) => {
                   const next = e.target.checked
                   setSharedDevice(next)
+                  setDeviceIsSharedDevice(next)
+                  if (pref) setDeviceLoginPreference(pref, next)
+                  if (locationCode) setDeviceLastLocation(locationCode)
                 }}
                 aria-label="This is a shared device"
               />
